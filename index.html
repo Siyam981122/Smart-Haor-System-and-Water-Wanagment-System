@@ -1,0 +1,2182 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>স্মার্ট হাওর পানি ব্যবস্থাপনা ও কৃষি সুরক্ষা সিস্টেম</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Tiro+Bangla&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+<!-- ============================================================
+     FIREBASE SETUP — তোমার নিজের Firebase প্রজেক্টের config এখানে বসাও
+     ১. https://console.firebase.google.com এ গিয়ে নতুন প্রজেক্ট বানাও
+     ২. Project Settings → General → "Add app" → Web (</>) সিলেক্ট করো
+     ৩. সেখান থেকে firebaseConfig অবজেক্টটি কপি করে নিচে পেস্ট করো
+     ৪. Build → Realtime Database → Create Database (test mode দিয়ে শুরু করো)
+     ৫. Build → Authentication দরকার নেই, আমরা সহজ পাসওয়ার্ড ব্যবহার করছি
+     ============================================================ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  // ⚠️ এখানে তোমার নিজের Firebase config বসাও
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  let fbApp = null;
+  let fbDB = null;
+  let fbReady = false;
+  try{
+    fbApp = firebase.initializeApp(firebaseConfig);
+    fbDB = firebase.database();
+    fbReady = true;
+  }catch(e){
+    console.warn('Firebase init failed — চলবে অফলাইন সিমুলেশন মোডে।', e);
+    fbReady = false;
+  }
+</script>
+<style>
+/* ============ ROOT TOKENS ============ */
+:root{
+  --haor-blue-900:#0B3D5C;
+  --haor-blue-800:#0F4D72;
+  --haor-blue-700:#15648F;
+  --haor-blue-100:#E3EEF4;
+  --paddy-green-700:#1F7A4D;
+  --paddy-green-500:#2E9C63;
+  --paddy-green-100:#E1F3E8;
+  --amber-600:#E8A33D;
+  --amber-100:#FBEDD6;
+  --flood-red-700:#C0392B;
+  --flood-red-100:#F8E2DF;
+  --bg-canvas:#F7F5EF;
+  --bg-panel:#FFFFFF;
+  --ink-900:#10242E;
+  --ink-700:#33454D;
+  --ink-500:#5C6E76;
+  --ink-300:#9AAAB0;
+  --line:#DCE3E0;
+  --shadow-sm: 0 1px 2px rgba(16,36,46,0.06);
+  --shadow-md: 0 6px 20px rgba(16,36,46,0.08);
+  --shadow-lg: 0 16px 40px rgba(16,36,46,0.14);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 24px;
+  --font-display:'Tiro Bangla', 'Hind Siliguri', serif;
+  --font-body:'Hind Siliguri', sans-serif;
+  --font-mono:'JetBrains Mono', monospace;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  font-family:var(--font-body);
+  background:var(--bg-canvas);
+  color:var(--ink-900);
+  line-height:1.6;
+  overflow-x:hidden;
+}
+img,svg{display:block;max-width:100%;}
+a{color:inherit;text-decoration:none;}
+button{font-family:inherit;border:none;cursor:pointer;background:none;}
+ul{list-style:none;}
+::selection{background:var(--haor-blue-700);color:#fff;}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;scroll-behavior:auto !important;}
+}
+
+:focus-visible{outline:3px solid var(--amber-600);outline-offset:2px;border-radius:4px;}
+
+.container{
+  max-width:1240px;
+  margin:0 auto;
+  padding:0 28px;
+}
+
+.eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:0.04em;
+  color:var(--haor-blue-700);
+  background:var(--haor-blue-100);
+  padding:7px 16px;
+  border-radius:100px;
+  margin-bottom:18px;
+}
+.eyebrow::before{
+  content:'';
+  width:6px;height:6px;border-radius:50%;
+  background:var(--haor-blue-700);
+}
+
+.section-head{
+  max-width:680px;
+  margin-bottom:48px;
+}
+.section-head h2{
+  font-family:var(--font-display);
+  font-size:clamp(28px,3.4vw,42px);
+  font-weight:700;
+  color:var(--ink-900);
+  margin-bottom:14px;
+  line-height:1.25;
+}
+.section-head p{
+  font-size:16.5px;
+  color:var(--ink-500);
+  line-height:1.75;
+}
+
+section{padding:96px 0;position:relative;}
+
+.btn{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:14px 28px;
+  border-radius:100px;
+  font-weight:600;
+  font-size:15.5px;
+  transition:transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  white-space:nowrap;
+}
+.btn-primary{
+  background:var(--haor-blue-900);
+  color:#fff;
+  box-shadow:var(--shadow-md);
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg);background:var(--haor-blue-800);}
+.btn-ghost{
+  background:rgba(255,255,255,0.12);
+  color:#fff;
+  border:1.5px solid rgba(255,255,255,0.45);
+  backdrop-filter:blur(6px);
+}
+.btn-ghost:hover{background:rgba(255,255,255,0.22);transform:translateY(-2px);}
+.btn-danger{
+  background:var(--flood-red-700);
+  color:#fff;
+}
+.btn-danger:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(192,57,43,0.35);}
+
+.pill{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12.5px;font-weight:600;padding:5px 12px;border-radius:100px;
+}
+.pill-safe{background:var(--paddy-green-100);color:var(--paddy-green-700);}
+.pill-warn{background:var(--amber-100);color:#92660E;}
+.pill-danger{background:var(--flood-red-100);color:var(--flood-red-700);}
+
+/* ============ NAVBAR ============ */
+.navbar{
+  position:sticky;top:0;z-index:100;
+  background:rgba(247,245,239,0.88);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.navbar .container{
+  display:flex;align-items:center;justify-content:space-between;
+  height:78px;
+}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-mark{
+  width:44px;height:44px;border-radius:12px;
+  background:linear-gradient(160deg,var(--haor-blue-700),var(--haor-blue-900));
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.brand-text .name{font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--ink-900);line-height:1.2;}
+.brand-text .sub{font-size:12px;color:var(--ink-500);}
+.nav-links{display:flex;align-items:center;gap:30px;}
+.nav-links a{font-size:14.5px;font-weight:500;color:var(--ink-700);transition:color 0.2s;}
+.nav-links a:hover{color:var(--haor-blue-800);}
+.nav-actions{display:flex;align-items:center;gap:12px;}
+.nav-cta{
+  background:var(--haor-blue-900);color:#fff;padding:10px 22px;border-radius:100px;
+  font-size:14.5px;font-weight:600;transition:background 0.2s, transform 0.2s;
+}
+.nav-cta:hover{background:var(--haor-blue-800);transform:translateY(-1px);}
+.nav-burger{display:none;}
+@media (max-width:920px){
+  .nav-links{display:none;}
+  .nav-burger{display:flex;}
+}
+
+/* ============ HERO ============ */
+.hero{
+  position:relative;
+  min-height:92vh;
+  display:flex;align-items:center;
+  background:linear-gradient(180deg,#0A3450 0%, #0B3D5C 38%, #0E5277 100%);
+  overflow:hidden;
+  padding-top:60px;
+}
+.hero-noise{
+  position:absolute;inset:0;
+  background-image:radial-gradient(circle at 20% 20%, rgba(255,255,255,0.05) 0, transparent 45%),
+                    radial-gradient(circle at 85% 75%, rgba(255,255,255,0.06) 0, transparent 50%);
+  pointer-events:none;
+}
+.hero-waves{
+  position:absolute;left:0;right:0;bottom:0;height:42%;
+  pointer-events:none;
+}
+.hero-waves svg{width:100%;height:100%;display:block;}
+.wave-back{animation:waveDrift 18s linear infinite;opacity:0.5;}
+.wave-mid{animation:waveDrift 12s linear infinite reverse;opacity:0.7;}
+.wave-front{animation:waveDrift 9s linear infinite;}
+@keyframes waveDrift{
+  0%{transform:translateX(0);}
+  100%{transform:translateX(-50%);}
+}
+.hero-grid{
+  position:relative;z-index:2;
+  display:grid;grid-template-columns:1.15fr 0.85fr;gap:56px;
+  align-items:center;
+  width:100%;
+}
+@media (max-width:980px){
+  .hero-grid{grid-template-columns:1fr;}
+}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,0.1);
+  border:1px solid rgba(255,255,255,0.25);
+  color:#fff;font-size:13px;font-weight:500;
+  padding:7px 16px;border-radius:100px;margin-bottom:24px;
+  backdrop-filter:blur(6px);
+}
+.hero-eyebrow .dot{width:7px;height:7px;border-radius:50%;background:#5EE6A0;animation:dotPulse 1.8s ease-in-out infinite;}
+@keyframes dotPulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(94,230,160,0.5);}50%{opacity:0.6;box-shadow:0 0 0 6px rgba(94,230,160,0);}}
+.hero h1{
+  font-family:var(--font-display);
+  font-size:clamp(34px,5vw,58px);
+  font-weight:700;
+  color:#fff;
+  line-height:1.28;
+  margin-bottom:22px;
+  text-shadow:0 2px 24px rgba(0,0,0,0.15);
+}
+.hero h1 .accent{color:#7FD4FF;}
+.hero p.lede{
+  font-size:18px;
+  color:rgba(255,255,255,0.82);
+  max-width:560px;
+  margin-bottom:36px;
+  line-height:1.8;
+}
+.hero-actions{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:46px;}
+.hero-stats{
+  display:flex;gap:36px;flex-wrap:wrap;
+  border-top:1px solid rgba(255,255,255,0.18);
+  padding-top:28px;
+}
+.hero-stat .num{
+  font-family:var(--font-mono);font-size:26px;font-weight:600;color:#fff;
+}
+.hero-stat .lbl{font-size:12.5px;color:rgba(255,255,255,0.65);margin-top:4px;}
+
+/* --- Signature element: live water gauge --- */
+.gauge-card{
+  position:relative;z-index:2;
+  background:rgba(255,255,255,0.07);
+  border:1px solid rgba(255,255,255,0.22);
+  border-radius:var(--radius-lg);
+  padding:28px;
+  backdrop-filter:blur(16px);
+  box-shadow:0 24px 60px rgba(0,0,0,0.25);
+}
+.gauge-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+.gauge-card-head h3{color:#fff;font-size:15px;font-weight:600;}
+.gauge-card-head .live-tag{
+  display:flex;align-items:center;gap:6px;
+  font-size:11.5px;color:#5EE6A0;font-weight:600;
+}
+.gauge-card-head .live-tag .dot{width:6px;height:6px;border-radius:50%;background:#5EE6A0;animation:dotPulse 1.8s ease-in-out infinite;}
+
+.gauge-wrap{display:flex;align-items:center;gap:24px;}
+.gauge-tube{
+  position:relative;
+  width:74px;height:200px;
+  border-radius:40px;
+  background:rgba(255,255,255,0.08);
+  border:2px solid rgba(255,255,255,0.25);
+  overflow:hidden;
+  flex-shrink:0;
+}
+.gauge-fill{
+  position:absolute;left:0;right:0;bottom:0;
+  height:62%;
+  background:linear-gradient(180deg, #4FC3E8, #1F8FC4);
+  border-radius:0 0 40px 40px;
+  transition:height 1.4s cubic-bezier(.4,0,.2,1);
+}
+.gauge-fill::before{
+  content:'';position:absolute;top:-6px;left:0;right:0;height:14px;
+  background:rgba(255,255,255,0.35);
+  border-radius:50%;
+  animation:rippleY 2.4s ease-in-out infinite;
+}
+@keyframes rippleY{0%,100%{transform:translateY(0) scaleY(1);}50%{transform:translateY(-2px) scaleY(1.15);}}
+.gauge-marks{
+  position:absolute;right:6px;top:8px;bottom:8px;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.gauge-marks span{width:8px;height:1px;background:rgba(255,255,255,0.4);}
+
+.gauge-readout{flex:1;}
+.gauge-readout .level-val{
+  font-family:var(--font-mono);font-size:34px;font-weight:600;color:#fff;line-height:1;
+}
+.gauge-readout .level-unit{font-size:14px;color:rgba(255,255,255,0.6);margin-right:4px;}
+.gauge-readout .level-label{font-size:13px;color:rgba(255,255,255,0.65);margin:6px 0 14px;}
+.gauge-readout .status-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 14px;border-radius:100px;font-size:13px;font-weight:600;
+}
+.status-safe{background:rgba(46,156,99,0.22);color:#7FE3AC;}
+.status-warn{background:rgba(232,163,61,0.22);color:#FFCB6B;}
+.status-danger{background:rgba(192,57,43,0.25);color:#FF8A7A;}
+
+.gauge-card-foot{
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px;
+  padding-top:20px;border-top:1px solid rgba(255,255,255,0.15);
+}
+.mini-stat .mini-lbl{font-size:11.5px;color:rgba(255,255,255,0.55);margin-bottom:4px;}
+.mini-stat .mini-val{font-family:var(--font-mono);font-size:17px;font-weight:600;color:#fff;}
+
+/* ============ LIVE SENSOR DASHBOARD ============ */
+#dashboard{background:var(--bg-canvas);}
+.sensor-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-bottom:28px;
+}
+@media (max-width:980px){.sensor-grid{grid-template-columns:1fr 1fr;}}
+@media (max-width:560px){.sensor-grid{grid-template-columns:1fr;}}
+
+.sensor-card{
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius-md);
+  padding:24px;
+  box-shadow:var(--shadow-sm);
+  transition:box-shadow 0.3s, transform 0.3s;
+  position:relative;
+  overflow:hidden;
+}
+.sensor-card:hover{box-shadow:var(--shadow-md);transform:translateY(-3px);}
+.sensor-card .icon-badge{
+  width:46px;height:46px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:18px;
+}
+.icon-water{background:var(--haor-blue-100);}
+.icon-temp{background:var(--amber-100);}
+.icon-hum{background:#E7F0FB;}
+.icon-gate{background:var(--paddy-green-100);}
+.sensor-card .s-label{font-size:13.5px;color:var(--ink-500);margin-bottom:6px;}
+.sensor-card .s-value{font-family:var(--font-mono);font-size:30px;font-weight:600;color:var(--ink-900);}
+.sensor-card .s-value .s-unit{font-size:15px;color:var(--ink-500);font-weight:500;margin-right:3px;}
+.sensor-card .s-foot{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);}
+.s-trend{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:4px;}
+.trend-up{color:var(--flood-red-700);}
+.trend-down{color:var(--paddy-green-700);}
+.trend-flat{color:var(--ink-500);}
+
+.live-glow{
+  position:absolute;top:18px;right:18px;
+  width:9px;height:9px;border-radius:50%;
+  background:var(--paddy-green-500);
+}
+.live-glow::after{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:var(--paddy-green-500);
+  animation:glowPing 2s ease-out infinite;
+}
+@keyframes glowPing{0%{transform:scale(1);opacity:0.7;}100%{transform:scale(2.6);opacity:0;}}
+
+.risk-status-row{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:8px;
+}
+@media (max-width:860px){.risk-status-row{grid-template-columns:1fr;}}
+.risk-status-card{
+  border-radius:var(--radius-md);
+  padding:26px;
+  position:relative;
+  border:1.5px solid transparent;
+  transition:transform 0.3s;
+}
+.risk-status-card.is-active{transform:scale(1.02);}
+.risk-safe{background:var(--paddy-green-100);border-color:rgba(31,122,77,0.25);}
+.risk-warn{background:var(--amber-100);border-color:rgba(232,163,61,0.4);}
+.risk-danger{background:var(--flood-red-100);border-color:rgba(192,57,43,0.3);}
+.risk-status-card .rs-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
+.risk-status-card h4{font-size:17px;font-weight:700;}
+.risk-safe h4{color:var(--paddy-green-700);}
+.risk-warn h4{color:#92660E;}
+.risk-danger h4{color:var(--flood-red-700);}
+.risk-status-card p{font-size:13.5px;color:var(--ink-700);line-height:1.7;}
+.active-tag{
+  font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:100px;
+  background:rgba(255,255,255,0.7);
+}
+.progress-track{
+  height:8px;border-radius:100px;background:rgba(255,255,255,0.6);overflow:hidden;margin-top:16px;
+}
+.progress-fill{height:100%;border-radius:100px;transition:width 1.2s ease;}
+.risk-safe .progress-fill{background:var(--paddy-green-700);}
+.risk-warn .progress-fill{background:var(--amber-600);}
+.risk-danger .progress-fill{background:var(--flood-red-700);}
+
+/* ============ FLOOD INTELLIGENCE CENTER ============ */
+#flood-intel{background:linear-gradient(180deg,#0F2F40 0%, #0B3D5C 100%);color:#fff;}
+#flood-intel .section-head h2{color:#fff;}
+#flood-intel .section-head p{color:rgba(255,255,255,0.7);}
+#flood-intel .eyebrow{background:rgba(255,255,255,0.1);color:#7FD4FF;}
+#flood-intel .eyebrow::before{background:#7FD4FF;}
+
+.intel-grid{
+  display:grid;grid-template-columns:1.1fr 1fr;gap:24px;
+}
+@media (max-width:980px){.intel-grid{grid-template-columns:1fr;}}
+
+.gauge-panel{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.14);
+  border-radius:var(--radius-lg);
+  padding:30px;
+  backdrop-filter:blur(10px);
+}
+.gauge-panel h3{font-size:16px;font-weight:600;margin-bottom:24px;}
+.gauge-row{display:flex;align-items:center;gap:28px;flex-wrap:wrap;}
+
+.donut-wrap{position:relative;width:160px;height:160px;flex-shrink:0;}
+.donut-wrap svg{transform:rotate(-90deg);}
+.donut-bg{fill:none;stroke:rgba(255,255,255,0.12);stroke-width:14;}
+.donut-fg{fill:none;stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset 1.4s cubic-bezier(.4,0,.2,1);}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.donut-center .d-val{font-family:var(--font-mono);font-size:28px;font-weight:700;}
+.donut-center .d-lbl{font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px;text-align:center;}
+
+.pred-list{flex:1;min-width:220px;display:flex;flex-direction:column;gap:16px;}
+.pred-item{display:flex;justify-content:space-between;align-items:center;}
+.pred-item .pi-label{font-size:14px;color:rgba(255,255,255,0.78);}
+.pred-item .pi-val{font-family:var(--font-mono);font-weight:600;font-size:15px;}
+
+.ai-box{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.14);
+  border-radius:var(--radius-lg);
+  padding:28px;
+  display:flex;flex-direction:column;
+}
+.ai-box-head{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+.ai-box-head .ai-icon{
+  width:34px;height:34px;border-radius:9px;
+  background:linear-gradient(160deg,#4FC3E8,#1F8FC4);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.ai-box-head h3{font-size:15.5px;font-weight:600;}
+.ai-box p.explain{
+  font-size:15px;line-height:1.85;color:rgba(255,255,255,0.85);
+  background:rgba(0,0,0,0.18);
+  border-radius:var(--radius-sm);
+  padding:18px;
+  border-left:3px solid #4FC3E8;
+  margin-bottom:18px;
+}
+.confidence-row{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+.confidence-row .c-label{font-size:13px;color:rgba(255,255,255,0.6);white-space:nowrap;}
+.confidence-track{flex:1;height:8px;border-radius:100px;background:rgba(255,255,255,0.12);overflow:hidden;}
+.confidence-fill{height:100%;background:linear-gradient(90deg,#4FC3E8,#5EE6A0);border-radius:100px;width:87%;}
+.confidence-row .c-val{font-family:var(--font-mono);font-size:13px;font-weight:600;color:#5EE6A0;}
+
+.trend-mini{display:flex;align-items:flex-end;gap:6px;height:60px;margin-top:auto;}
+.trend-mini .bar{flex:1;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#4FC3E8,#1F8FC4);opacity:0.85;transition:height 1s ease;}
+.trend-mini .bar.bar-now{background:linear-gradient(180deg,#FFCB6B,#E8A33D);opacity:1;}
+.trend-caption{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.45);margin-top:8px;}
+
+/* ============ RISK MAP ============ */
+#risk-map{background:var(--bg-canvas);}
+.map-shell{
+  display:grid;grid-template-columns:1fr 320px;gap:0;
+  border-radius:var(--radius-lg);
+  overflow:hidden;
+  box-shadow:var(--shadow-md);
+  border:1px solid var(--line);
+}
+@media (max-width:860px){.map-shell{grid-template-columns:1fr;}}
+#leaflet-map{width:100%;height:480px;background:#cfe3ea;}
+.map-sidebar{background:var(--bg-panel);padding:24px;}
+.map-sidebar h4{font-size:15px;font-weight:700;margin-bottom:16px;}
+.legend-item{display:flex;align-items:center;gap:10px;margin-bottom:13px;font-size:13.5px;color:var(--ink-700);}
+.legend-dot{width:13px;height:13px;border-radius:50%;flex-shrink:0;}
+.map-divider{height:1px;background:var(--line);margin:18px 0;}
+.map-info-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px;color:var(--ink-500);}
+.map-info-row b{color:var(--ink-900);font-weight:600;}
+.leaflet-popup-content{font-family:var(--font-body);font-size:13.5px;}
+
+/* ============ EMERGENCY RESPONSE CENTER ============ */
+#emergency{background:linear-gradient(180deg,#1A0F0E 0%, #2A1410 100%);color:#fff;}
+#emergency .section-head h2{color:#fff;}
+#emergency .section-head p{color:rgba(255,255,255,0.7);}
+#emergency .eyebrow{background:rgba(255,255,255,0.1);color:#FF8A7A;}
+#emergency .eyebrow::before{background:#FF8A7A;}
+
+.emergency-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+@media (max-width:980px){.emergency-grid{grid-template-columns:1fr 1fr;}}
+@media (max-width:600px){.emergency-grid{grid-template-columns:1fr;}}
+
+.emergency-card{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.14);
+  border-radius:var(--radius-md);
+  padding:24px;
+  display:flex;flex-direction:column;gap:14px;
+  transition:transform 0.25s, background 0.25s;
+}
+.emergency-card:hover{transform:translateY(-4px);background:rgba(255,255,255,0.1);}
+.emergency-card .ec-icon{
+  width:48px;height:48px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+}
+.ec-red{background:rgba(192,57,43,0.25);}
+.ec-blue{background:rgba(21,100,143,0.3);}
+.ec-amber{background:rgba(232,163,61,0.25);}
+.ec-green{background:rgba(46,156,99,0.25);}
+.emergency-card h4{font-size:16.5px;font-weight:700;}
+.emergency-card .ec-sub{font-size:13px;color:rgba(255,255,255,0.6);margin-top:-8px;}
+.emergency-card .ec-call{
+  margin-top:auto;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:12px;border-radius:100px;
+  font-weight:700;font-size:15px;
+  background:rgba(255,255,255,0.12);
+  transition:background 0.2s;
+}
+.emergency-card:hover .ec-call{background:rgba(255,255,255,0.2);}
+.ec-call.call-red{background:var(--flood-red-700);}
+.ec-call.call-red:hover{background:#A8362A;}
+
+/* ============ ABOUT PROJECT ============ */
+#about{background:var(--bg-canvas);}
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start;}
+@media (max-width:900px){.about-grid{grid-template-columns:1fr;}}
+.about-copy p{font-size:16px;color:var(--ink-700);margin-bottom:18px;line-height:1.85;}
+.about-stats{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:28px;}
+.about-stat{background:var(--bg-panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:20px;}
+.about-stat .a-num{font-family:var(--font-mono);font-size:26px;font-weight:700;color:var(--haor-blue-800);}
+.about-stat .a-lbl{font-size:13px;color:var(--ink-500);margin-top:4px;}
+.mission-list{display:flex;flex-direction:column;gap:18px;}
+.mission-item{
+  display:flex;gap:16px;align-items:flex-start;
+  background:var(--bg-panel);border:1px solid var(--line);
+  border-radius:var(--radius-md);padding:18px 20px;
+}
+.mission-num{
+  font-family:var(--font-mono);font-weight:700;font-size:14px;
+  color:var(--haor-blue-700);background:var(--haor-blue-100);
+  width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.mission-item h5{font-size:15px;font-weight:700;margin-bottom:4px;}
+.mission-item p{font-size:13.5px;color:var(--ink-500);}
+
+/* ============ SYSTEM WORKFLOW ============ */
+#workflow{background:var(--bg-panel);}
+.workflow-track{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:18px;position:relative;
+}
+@media (max-width:980px){.workflow-track{grid-template-columns:1fr 1fr;}}
+@media (max-width:560px){.workflow-track{grid-template-columns:1fr;}}
+.wf-step{
+  background:var(--bg-canvas);
+  border:1px solid var(--line);
+  border-radius:var(--radius-md);
+  padding:22px;
+  position:relative;
+}
+.wf-step .wf-num{
+  font-family:var(--font-mono);font-size:13px;font-weight:700;
+  color:var(--haor-blue-700);margin-bottom:12px;
+}
+.wf-step .wf-icon{
+  width:42px;height:42px;border-radius:10px;background:var(--haor-blue-100);
+  display:flex;align-items:center;justify-content:center;margin-bottom:14px;
+}
+.wf-step h5{font-size:14.5px;font-weight:700;margin-bottom:6px;}
+.wf-step p{font-size:12.5px;color:var(--ink-500);line-height:1.6;}
+.wf-arrow{display:none;}
+@media (min-width:981px){
+  .wf-step:not(:last-child)::after{
+    content:'→';position:absolute;top:50%;right:-26px;transform:translateY(-50%);
+    font-size:18px;color:var(--ink-300);
+  }
+}
+
+.gate-logic-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:48px;}
+@media (max-width:860px){.gate-logic-grid{grid-template-columns:1fr;}}
+.gate-logic-card{border-radius:var(--radius-md);padding:26px;border:1.5px solid transparent;}
+.gate-danger-bg{background:var(--flood-red-100);border-color:rgba(192,57,43,0.25);}
+.gate-safe-bg{background:var(--paddy-green-100);border-color:rgba(31,122,77,0.25);}
+.gate-logic-card h5{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.gate-logic-card ul{display:flex;flex-direction:column;gap:10px;}
+.gate-logic-card li{font-size:14px;display:flex;align-items:center;gap:10px;color:var(--ink-700);}
+.gate-logic-card li::before{content:'✓';font-weight:700;}
+.gate-danger-bg li::before{color:var(--flood-red-700);}
+.gate-safe-bg li::before{color:var(--paddy-green-700);}
+
+/* ============ TECHNOLOGY STACK ============ */
+#tech{background:var(--bg-canvas);}
+.tech-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;}
+@media (max-width:980px){.tech-grid{grid-template-columns:1fr 1fr;}}
+@media (max-width:560px){.tech-grid{grid-template-columns:1fr;}}
+.tech-card{
+  background:var(--bg-panel);border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:24px;
+}
+.tech-card h5{font-size:13px;font-weight:700;color:var(--haor-blue-700);margin-bottom:14px;letter-spacing:0.02em;}
+.tech-card ul{display:flex;flex-direction:column;gap:10px;}
+.tech-card li{font-size:14px;color:var(--ink-700);display:flex;align-items:center;gap:8px;}
+.tech-card li::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--haor-blue-700);flex-shrink:0;}
+
+/* ============ PROJECT TEAM ============ */
+#team{background:var(--bg-panel);}
+.team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+@media (max-width:980px){.team-grid{grid-template-columns:1fr 1fr;}}
+@media (max-width:640px){.team-grid{grid-template-columns:1fr;}}
+.team-card{
+  background:var(--bg-canvas);border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:28px 24px;text-align:center;transition:transform 0.25s, box-shadow 0.25s;
+}
+.team-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);}
+.team-avatar{
+  width:74px;height:74px;border-radius:50%;margin:0 auto 16px;
+  background:linear-gradient(160deg,var(--haor-blue-700),var(--haor-blue-900));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-family:var(--font-display);font-size:24px;font-weight:700;
+}
+.team-card h5{font-size:16px;font-weight:700;margin-bottom:4px;}
+.team-card .role{font-size:13px;color:var(--haor-blue-700);font-weight:600;margin-bottom:10px;}
+.team-card .desc{font-size:12.5px;color:var(--ink-500);line-height:1.6;}
+
+/* ============ STATS COUNTER (Science Fair Mode) ============ */
+#impact{background:linear-gradient(160deg,var(--haor-blue-900),var(--haor-blue-700));color:#fff;}
+.impact-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center;}
+@media (max-width:860px){.impact-grid{grid-template-columns:1fr 1fr;}}
+.impact-item .imp-num{font-family:var(--font-mono);font-size:clamp(32px,4vw,46px);font-weight:700;}
+.impact-item .imp-lbl{font-size:14px;color:rgba(255,255,255,0.7);margin-top:8px;}
+
+/* ============ GOVT CONTACTS ============ */
+#govt-contacts{background:var(--bg-canvas);}
+.govt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+@media (max-width:860px){.govt-grid{grid-template-columns:1fr;}}
+.govt-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:22px;}
+.govt-card h5{font-size:14.5px;font-weight:700;margin-bottom:6px;}
+.govt-card .g-office{font-size:13px;color:var(--ink-500);margin-bottom:14px;}
+.govt-card .g-phone{font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--haor-blue-800);}
+
+/* ============ CONTACT ============ */
+#contact-section{background:var(--bg-panel);}
+.contact-shell{display:grid;grid-template-columns:1fr 1fr;gap:48px;}
+@media (max-width:860px){.contact-shell{grid-template-columns:1fr;}}
+.form-field{margin-bottom:18px;}
+.form-field label{display:block;font-size:13.5px;font-weight:600;color:var(--ink-700);margin-bottom:7px;}
+.form-field input,.form-field textarea{
+  width:100%;padding:12px 16px;border-radius:10px;border:1.5px solid var(--line);
+  font-family:inherit;font-size:14.5px;background:var(--bg-canvas);color:var(--ink-900);
+  transition:border-color 0.2s;
+}
+.form-field input:focus,.form-field textarea:focus{border-color:var(--haor-blue-700);outline:none;}
+.contact-info-card{background:var(--haor-blue-900);border-radius:var(--radius-lg);padding:32px;color:#fff;}
+.contact-info-card h4{font-size:18px;font-weight:700;margin-bottom:18px;}
+.cinfo-row{display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;}
+.cinfo-row .ci-label{font-size:12.5px;color:rgba(255,255,255,0.6);}
+.cinfo-row .ci-val{font-size:14.5px;font-weight:600;}
+
+/* ============ FOOTER ============ */
+footer{background:#0A2436;color:rgba(255,255,255,0.65);padding:64px 0 28px;}
+.footer-top{display:grid;grid-template-columns:1.8fr 1fr 1fr 1fr;gap:40px;margin-bottom:44px;}
+@media (max-width:860px){.footer-top{grid-template-columns:1fr 1fr;row-gap:32px;}}
+@media (max-width:560px){.footer-top{grid-template-columns:1fr;}}
+
+.footer-brand-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.footer-brand-mark{
+  width:38px;height:38px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(160deg,var(--haor-blue-700),var(--haor-blue-900));
+  display:flex;align-items:center;justify-content:center;
+}
+.footer-brand .name{color:#fff;font-family:var(--font-display);font-size:18px;font-weight:700;}
+.footer-brand p{font-size:13.5px;line-height:1.85;max-width:320px;margin-bottom:20px;}
+.footer-emergency-chip{
+  display:inline-flex;align-items:center;gap:10px;
+  background:rgba(192,57,43,0.18);border:1px solid rgba(192,57,43,0.35);
+  border-radius:100px;padding:8px 8px 8px 16px;font-size:13px;color:#FF8A7A;
+}
+.footer-emergency-chip a{
+  background:var(--flood-red-700);color:#fff;font-weight:700;
+  padding:6px 16px;border-radius:100px;font-size:13.5px;transition:background 0.2s;
+}
+.footer-emergency-chip a:hover{background:#A8362A;}
+
+footer h6{color:#fff;font-size:13.5px;font-weight:700;margin-bottom:18px;letter-spacing:0.01em;}
+.footer-nav-col ul{display:flex;flex-direction:column;gap:12px;}
+.footer-nav-col li{list-style:none;}
+.footer-nav-col a{font-size:13.5px;color:rgba(255,255,255,0.65);transition:color 0.2s;}
+.footer-nav-col a:hover{color:#fff;}
+
+.footer-bottom{
+  border-top:1px solid rgba(255,255,255,0.1);padding-top:24px;
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12.5px;color:rgba(255,255,255,0.5);
+}
+/* ============ ADMIN LOGIN PREVIEW ============ */
+#admin-login{background:linear-gradient(160deg,#0F2F40,#0B3D5C);color:#fff;}
+.admin-shell{
+  max-width:420px;margin:0 auto;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.16);
+  border-radius:var(--radius-lg);
+  padding:40px 36px;
+  backdrop-filter:blur(10px);
+  text-align:center;
+}
+.admin-shell .admin-icon{
+  width:56px;height:56px;border-radius:14px;margin:0 auto 20px;
+  background:linear-gradient(160deg,#4FC3E8,#1F8FC4);
+  display:flex;align-items:center;justify-content:center;
+}
+.admin-shell h3{font-size:19px;font-weight:700;margin-bottom:8px;}
+.admin-shell p{font-size:13.5px;color:rgba(255,255,255,0.65);margin-bottom:24px;line-height:1.7;}
+.admin-shell .form-field{text-align:right;}
+.admin-shell .form-field label{color:rgba(255,255,255,0.75);}
+.admin-shell .form-field input{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2);color:#fff;}
+.admin-shell .form-field input::placeholder{color:rgba(255,255,255,0.35);}
+.admin-note{
+  margin-top:18px;font-size:12px;color:rgba(255,255,255,0.5);
+  background:rgba(0,0,0,0.18);border-radius:8px;padding:10px 14px;
+}
+
+/* ============ ADMIN DASHBOARD (full panel) ============ */
+.admin-error{
+  display:none;margin-top:14px;font-size:13px;color:#FF8A7A;
+  background:rgba(192,57,43,0.18);border-radius:8px;padding:10px 14px;
+}
+.admin-dash-wrap{max-width:980px;margin:0 auto;text-align:right;}
+.admin-dash-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;flex-wrap:wrap;gap:12px;}
+.admin-dash-head h3{font-size:21px;font-weight:700;color:#fff;}
+.admin-logout-btn{
+  background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.25);
+  color:#fff;padding:9px 18px;border-radius:100px;font-size:13.5px;font-weight:600;
+  transition:background 0.2s;
+}
+.admin-logout-btn:hover{background:rgba(255,255,255,0.18);}
+
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+@media (max-width:820px){.admin-grid{grid-template-columns:1fr;}}
+
+.admin-card{
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);
+  border-radius:var(--radius-md);padding:22px;
+}
+.admin-card.full-width{grid-column:1 / -1;}
+.admin-card h4{font-size:15px;font-weight:700;color:#fff;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+
+.admin-slider-row{display:flex;align-items:center;gap:14px;}
+.admin-slider-row input[type="range"]{flex:1;height:6px;border-radius:100px;background:rgba(255,255,255,0.15);accent-color:#4FC3E8;}
+.admin-slider-row .slider-val{font-family:var(--font-mono);font-size:15px;font-weight:700;color:#7FD4FF;min-width:70px;text-align:left;}
+
+.admin-btn-row{display:flex;gap:10px;flex-wrap:wrap;}
+.admin-btn-row .btn{flex:1;justify-content:center;font-size:13.5px;padding:11px 16px;}
+.is-active-toggle{outline:2px solid #5EE6A0;outline-offset:2px;}
+
+.admin-select{
+  width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.2);
+  background:rgba(255,255,255,0.08);color:#fff;font-family:inherit;font-size:14px;
+}
+.admin-select option{color:#10242E;}
+
+.admin-sensor-list{display:flex;flex-direction:column;gap:10px;}
+.admin-sensor-row{
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(0,0,0,0.15);border-radius:8px;padding:10px 14px;font-size:13.5px;color:rgba(255,255,255,0.85);
+}
+.admin-toggle-switch{position:relative;display:inline-block;width:42px;height:23px;flex-shrink:0;}
+.admin-toggle-switch input{opacity:0;width:0;height:0;}
+.admin-toggle-slider{
+  position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,0.2);
+  border-radius:100px;transition:0.3s;
+}
+.admin-toggle-slider::before{
+  content:'';position:absolute;height:17px;width:17px;left:3px;bottom:3px;
+  background:#fff;border-radius:50%;transition:0.3s;
+}
+.admin-toggle-switch input:checked + .admin-toggle-slider{background:#2E9C63;}
+.admin-toggle-switch input:checked + .admin-toggle-slider::before{transform:translateX(19px);}
+
+.admin-textarea{
+  width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.2);
+  background:rgba(255,255,255,0.08);color:#fff;font-family:inherit;font-size:14px;resize:vertical;margin-bottom:12px;
+}
+.admin-textarea::placeholder{color:rgba(255,255,255,0.4);}
+
+.admin-confirm-msg{
+  display:none;align-items:center;gap:8px;margin-top:12px;font-size:13px;font-weight:600;color:#7FE3AC;
+}
+
+.admin-team-row, .admin-contact-row{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;
+}
+.admin-contact-row{grid-template-columns:1.3fr 1.3fr 1fr auto;align-items:center;}
+.admin-team-row input, .admin-contact-row input[type="text"]{
+  padding:9px 12px;border-radius:8px;border:1.5px solid rgba(255,255,255,0.2);
+  background:rgba(255,255,255,0.08);color:#fff;font-family:inherit;font-size:13px;
+}
+.admin-urgent-check{display:flex;align-items:center;gap:6px;font-size:12.5px;color:rgba(255,255,255,0.75);white-space:nowrap;}
+</style>
+</head>
+<body>
+
+<!-- ============ TOP STRIP ============ -->
+<div id="top-strip" style="background:var(--haor-blue-900);color:#fff;font-size:13px;">
+  <div class="container" style="display:flex;justify-content:space-between;align-items:center;padding:8px 28px;flex-wrap:wrap;gap:6px;">
+    <span style="opacity:0.85;">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার &nbsp;|&nbsp; পানি সম্পদ মন্ত্রণালয় উদ্যোগ</span>
+    <span style="opacity:0.85;" id="clock-strip">সর্বশেষ সিস্টেম সিঙ্ক: লাইভ</span>
+  </div>
+</div>
+
+<!-- ============ NAVBAR ============ -->
+<nav class="navbar">
+  <div class="container">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 5 10 5 15C5 18.866 8.134 22 12 22C15.866 22 19 18.866 19 15C19 10 12 2 12 2Z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="brand-text">
+        <div class="name">স্মার্ট হাওর সিস্টেম</div>
+        <div class="sub">দেকার হাওর, সুনামগঞ্জ</div>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="#dashboard">লাইভ ড্যাশবোর্ড</a>
+      <a href="#flood-intel">ঝুঁকি বিশ্লেষণ</a>
+      <a href="#risk-map">ম্যাপ</a>
+      <a href="#emergency">জরুরি সহায়তা</a>
+      <a href="#about">প্রকল্প পরিচিতি</a>
+      <a href="#team">টিম</a>
+    </div>
+    <div class="nav-actions">
+      <a href="#admin-login" class="nav-cta">অ্যাডমিন লগইন</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-noise"></div>
+  <div class="hero-waves">
+    <svg viewBox="0 0 1440 220" preserveAspectRatio="none" class="wave-back"><path d="M0,120 C240,180 480,60 720,110 C960,160 1200,60 1440,110 L1440,220 L0,220 Z" fill="rgba(255,255,255,0.05)"/></svg>
+  </div>
+  <div class="hero-waves">
+    <svg viewBox="0 0 1440 220" preserveAspectRatio="none" class="wave-mid"><path d="M0,140 C220,90 460,170 720,130 C980,90 1220,160 1440,120 L1440,220 L0,220 Z" fill="rgba(255,255,255,0.07)"/></svg>
+  </div>
+  <div class="hero-waves">
+    <svg viewBox="0 0 1440 220" preserveAspectRatio="none" class="wave-front"><path d="M0,160 C260,120 500,190 760,150 C1000,115 1220,180 1440,150 L1440,220 L0,220 Z" fill="rgba(255,255,255,0.1)"/></svg>
+  </div>
+
+  <div class="container hero-grid">
+    <div>
+      <div class="hero-eyebrow"><span class="dot"></span> লাইভ মনিটরিং সক্রিয় — দেকার হাওর, সুনামগঞ্জ</div>
+      <h1>হাওরের পানি নিয়ন্ত্রণে <span class="accent">স্মার্ট প্রযুক্তি</span>,<br>কৃষকের ফসল সুরক্ষায় নির্ভরযোগ্য সমাধান</h1>
+      <p class="lede">সেন্সর, কৃত্রিম বুদ্ধিমত্তা এবং স্বয়ংক্রিয় গেট নিয়ন্ত্রণের মাধ্যমে দেকার হাওরের পানি পর্যবেক্ষণ করে কৃষকদের আগাম সতর্কতা প্রদান করা হয়, যাতে আকস্মিক বন্যা থেকে ফসল রক্ষা করা যায়।</p>
+      <div class="hero-actions">
+        <a href="#dashboard" class="btn btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" fill="white"/><path d="M2 12C2 12 5.5 5 12 5C18.5 5 22 12 22 12C22 12 18.5 19 12 19C5.5 19 2 12 2 12Z" stroke="white" stroke-width="1.8"/></svg>
+          লাইভ পর্যবেক্ষণ
+        </a>
+        <a href="#flood-intel" class="btn btn-ghost">ঝুঁকি বিশ্লেষণ দেখুন</a>
+        <a href="#emergency" class="btn btn-ghost">জরুরি সহায়তা</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="num" id="stat-farmers">৩,২৪০+</div><div class="lbl">সুরক্ষিত কৃষক পরিবার</div></div>
+        <div class="hero-stat"><div class="num" id="stat-hectare">১,৮৫০</div><div class="lbl">হেক্টর সুরক্ষিত ফসলি জমি</div></div>
+        <div class="hero-stat"><div class="num" id="stat-alerts">৪৭</div><div class="lbl">প্রেরিত আগাম সতর্কবার্তা</div></div>
+      </div>
+    </div>
+
+    <div class="gauge-card">
+      <div class="gauge-card-head">
+        <h3>বর্তমান পানির স্তর — সেন্সর ০১</h3>
+        <div class="live-tag"><span class="dot"></span> লাইভ</div>
+      </div>
+      <div class="gauge-wrap">
+        <div class="gauge-tube">
+          <div class="gauge-fill" id="hero-gauge-fill" style="height:54%;"></div>
+          <div class="gauge-marks"><span></span><span></span><span></span><span></span><span></span></div>
+        </div>
+        <div class="gauge-readout">
+          <div><span class="level-val" id="hero-gauge-val">৫.৪</span><span class="level-unit">মিটার</span></div>
+          <div class="level-label">বিপদসীমা থেকে ১.১ মি নিচে</div>
+          <span class="status-badge status-warn" id="hero-gauge-status">⚠️ সতর্কতা স্তর</span>
+        </div>
+      </div>
+      <div class="gauge-card-foot">
+        <div class="mini-stat"><div class="mini-lbl">তাপমাত্রা</div><div class="mini-val" id="hero-mini-temp">৩১.২°সে</div></div>
+        <div class="mini-stat"><div class="mini-lbl">আর্দ্রতা</div><div class="mini-val" id="hero-mini-hum">৭৮%</div></div>
+        <div class="mini-stat"><div class="mini-lbl">গেটের অবস্থা</div><div class="mini-val" id="hero-mini-gate">আংশিক খোলা</div></div>
+        <div class="mini-stat"><div class="mini-lbl">সর্বশেষ আপডেট</div><div class="mini-val" id="hero-mini-time">৪ সেকেন্ড আগে</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LIVE SENSOR DASHBOARD ============ -->
+<section id="dashboard">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">০২ · লাইভ সেন্সর ড্যাশবোর্ড</div>
+      <h2>রিয়েলটাইম সেন্সর তথ্য, সরাসরি হাওর থেকে</h2>
+      <p>ফায়ারবেস রিয়েলটাইম ডেটাবেসের মাধ্যমে প্রতি কয়েক সেকেন্ডে হাওরের সেন্সর থেকে তথ্য সংগ্রহ ও প্রদর্শন করা হয়। নিচের তথ্য নমুনা ডেটা দিয়ে সচল রাখা হয়েছে।</p>
+    </div>
+
+    <div class="sensor-grid">
+      <div class="sensor-card">
+        <span class="live-glow"></span>
+        <div class="icon-badge icon-water">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 5 10 5 15C5 18.866 8.134 22 12 22C15.866 22 19 18.866 19 15C19 10 12 2 12 2Z" stroke="#15648F" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="s-label">বর্তমান পানির স্তর</div>
+        <div class="s-value" id="card-water-level"><span class="s-unit"></span>৫.৪ মি</div>
+        <div class="s-foot">
+          <span class="s-trend trend-up" id="card-water-trend">▲ বাড়ছে</span>
+          <span style="font-size:12px;color:var(--ink-300);">৩ সে. আগে</span>
+        </div>
+      </div>
+
+      <div class="sensor-card">
+        <span class="live-glow"></span>
+        <div class="icon-badge icon-temp">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 14V4M12 14C10.3431 14 9 15.3431 9 17C9 18.6569 10.3431 20 12 20C13.6569 20 15 18.6569 15 17C15 15.3431 13.6569 14 12 14Z" stroke="#E8A33D" stroke-width="1.8"/></svg>
+        </div>
+        <div class="s-label">তাপমাত্রা</div>
+        <div class="s-value" id="card-temp">৩১.২°সে</div>
+        <div class="s-foot">
+          <span class="s-trend trend-flat">● স্বাভাবিক</span>
+          <span style="font-size:12px;color:var(--ink-300);">৩ সে. আগে</span>
+        </div>
+      </div>
+
+      <div class="sensor-card">
+        <span class="live-glow"></span>
+        <div class="icon-badge icon-hum">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="#2C6FB5" stroke-width="1.8"/><path d="M12 8V16M8 12H16" stroke="#2C6FB5" stroke-width="1.6"/></svg>
+        </div>
+        <div class="s-label">আর্দ্রতা</div>
+        <div class="s-value" id="card-hum">৭৮%</div>
+        <div class="s-foot">
+          <span class="s-trend trend-down">▼ কমছে</span>
+          <span style="font-size:12px;color:var(--ink-300);">৩ সে. আগে</span>
+        </div>
+      </div>
+
+      <div class="sensor-card">
+        <span class="live-glow"></span>
+        <div class="icon-badge icon-gate">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke="#1F7A4D" stroke-width="1.8"/><path d="M12 4V20" stroke="#1F7A4D" stroke-width="1.8"/></svg>
+        </div>
+        <div class="s-label">গেটের অবস্থা</div>
+        <div class="s-value" style="font-size:22px;" id="card-gate">আংশিক খোলা</div>
+        <div class="s-foot">
+          <span class="s-trend trend-flat" style="color:var(--paddy-green-700);">● অটো মোড সক্রিয়</span>
+          <span style="font-size:12px;color:var(--ink-300);">৩ সে. আগে</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="risk-status-row">
+      <div class="risk-status-card risk-safe">
+        <div class="rs-top"><h4>নিরাপদ</h4></div>
+        <p>পানির স্তর স্বাভাবিক সীমার মধ্যে। ফসল ও জনবসতির জন্য কোনো ঝুঁকি নেই।</p>
+        <div class="progress-track"><div class="progress-fill" style="width:20%;"></div></div>
+      </div>
+      <div class="risk-status-card risk-warn is-active">
+        <div class="rs-top"><h4>সতর্কতা</h4><span class="active-tag">● বর্তমান অবস্থা</span></div>
+        <p>পানির স্তর বিপদসীমার কাছাকাছি পৌঁছাচ্ছে। কৃষকদের সতর্ক থাকার পরামর্শ দেওয়া হচ্ছে।</p>
+        <div class="progress-track"><div class="progress-fill" style="width:62%;"></div></div>
+      </div>
+      <div class="risk-status-card risk-danger">
+        <div class="rs-top"><h4>বিপদ</h4></div>
+        <p>পানির স্তর বিপদসীমা অতিক্রম করেছে। তাৎক্ষণিক ব্যবস্থা ও সতর্কবার্তা প্রয়োজন।</p>
+        <div class="progress-track"><div class="progress-fill" style="width:0%;"></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SMART FLOOD INTELLIGENCE CENTER ============ -->
+<section id="flood-intel">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">০৩ · স্মার্ট ফ্লুড ইন্টেলিজেন্স সেন্টার</div>
+      <h2>কৃত্রিম বুদ্ধিমত্তা দিয়ে বন্যার পূর্বাভাস</h2>
+      <p>সেন্সর ডেটা ও ঐতিহাসিক প্রবণতা বিশ্লেষণ করে সিস্টেম স্বয়ংক্রিয়ভাবে বন্যা ও ফসল ক্ষতির ঝুঁকি নির্ধারণ করে এবং সহজ বাংলায় তা ব্যাখ্যা করে।</p>
+    </div>
+
+    <div class="intel-grid">
+      <div class="gauge-panel">
+        <h3>ঝুঁকি নির্ণয় — গজ চার্ট</h3>
+        <div class="gauge-row">
+          <div class="donut-wrap">
+            <svg viewBox="0 0 160 160" width="160" height="160">
+              <circle class="donut-bg" cx="80" cy="80" r="64"></circle>
+              <circle class="donut-fg" id="donut-flood" cx="80" cy="80" r="64" stroke="#E8A33D" stroke-dasharray="402" stroke-dashoffset="161"></circle>
+            </svg>
+            <div class="donut-center">
+              <div class="d-val" id="donut-flood-val">৬০%</div>
+              <div class="d-lbl">বন্যার সম্ভাবনা</div>
+            </div>
+          </div>
+          <div class="pred-list">
+            <div class="pred-item"><span class="pi-label">আকস্মিক বন্যার সম্ভাবনা</span><span class="pi-val" id="pred-flash-flood" style="color:#FF8A7A;">৩৪%</span></div>
+            <div class="pred-item"><span class="pi-label">পানি উপচে পড়ার ঝুঁকি</span><span class="pi-val" id="pred-overflow" style="color:#FFCB6B;">৫৮%</span></div>
+            <div class="pred-item"><span class="pi-label">ফসল ক্ষতির সম্ভাবনা</span><span class="pi-val" id="pred-crop-damage" style="color:#FFCB6B;">৪১%</span></div>
+            <div class="pred-item"><span class="pi-label">পরিস্থিতি স্থিতিশীলতা</span><span class="pi-val" id="pred-stability" style="color:#7FE3AC;">মধ্যম</span></div>
+          </div>
+        </div>
+
+        <div style="margin-top:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <div style="background:rgba(0,0,0,0.15);border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px;">মডেল ০১</div>
+            <div style="font-size:12.5px;font-weight:600;">পানির স্তর প্রবণতা</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.15);border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px;">মডেল ০২</div>
+            <div style="font-size:12.5px;font-weight:600;">বৃষ্টিপাত সহযোগী তথ্য</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.15);border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px;">মডেল ০৩</div>
+            <div style="font-size:12.5px;font-weight:600;">ঐতিহাসিক প্যাটার্ন তুলনা</div>
+          </div>
+        </div>
+
+        <div style="margin-top:30px;">
+          <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:10px;">গত ৭ দিনের পানির স্তর প্রবণতা (মিটার)</div>
+          <div class="trend-mini" id="trend-bars">
+            <div class="bar" style="height:38%;"></div>
+            <div class="bar" style="height:45%;"></div>
+            <div class="bar" style="height:42%;"></div>
+            <div class="bar" style="height:55%;"></div>
+            <div class="bar" style="height:60%;"></div>
+            <div class="bar" style="height:68%;"></div>
+            <div class="bar bar-now" style="height:74%;"></div>
+          </div>
+          <div class="trend-caption"><span>৭ দিন আগে</span><span>আজ</span></div>
+        </div>
+      </div>
+
+      <div class="ai-box">
+        <div class="ai-box-head">
+          <div class="ai-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L14.5 9H21.5L16 13.5L18 21L12 16.5L6 21L8 13.5L2.5 9H9.5L12 2Z" fill="white"/></svg>
+          </div>
+          <h3>এআই পূর্বাভাস ব্যাখ্যা</h3>
+        </div>
+        <p class="explain" id="ai-explain-text">গত ৬ ঘণ্টায় পানির স্তর ক্রমাগত বেড়েছে এবং বর্তমানে বিপদসীমার ১.১ মিটার নিচে অবস্থান করছে। এই হারে বাড়লে আগামী ১২–১৮ ঘণ্টার মধ্যে স্তর বিপদসীমা স্পর্শ করতে পারে। কৃষকদের নিচু জমির ফসল পর্যবেক্ষণে রাখার পরামর্শ দেওয়া হচ্ছে।</p>
+
+        <div class="confidence-row">
+          <span class="c-label">পূর্বাভাসের নিশ্চয়তা</span>
+          <div class="confidence-track"><div class="confidence-fill"></div></div>
+          <span class="c-val">৮৭%</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:auto;">
+          <div style="background:rgba(0,0,0,0.15);border-radius:10px;padding:14px;">
+            <div style="font-size:11.5px;color:rgba(255,255,255,0.55);margin-bottom:5px;">ঐতিহাসিক তুলনা</div>
+            <div style="font-size:14px;font-weight:600;">২০২২ বন্যার চেয়ে ১৮% কম</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.15);border-radius:10px;padding:14px;">
+            <div style="font-size:11.5px;color:rgba(255,255,255,0.55);margin-bottom:5px;">প্রস্তাবিত পদক্ষেপ</div>
+            <div style="font-size:14px;font-weight:600;">গেট মনিটরিং বাড়ানো হোক</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DEKAR HAOR RISK MAP ============ -->
+<section id="risk-map">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">০৪ · দেকার হাওর ঝুঁকি মানচিত্র</div>
+      <h2>এলাকাভিত্তিক ঝুঁকি বিশ্লেষণ মানচিত্র</h2>
+      <p>মানচিত্রটি দেকার হাওরের প্রকৃত ভৌগোলিক অবস্থান (দক্ষিণ সুনামগঞ্জ উপজেলা) কেন্দ্র করে তৈরি। চিহ্নিত স্থানগুলোতে কার্সর রাখলে সেই এলাকার পানির স্তর ও ঝুঁকির বিস্তারিত তথ্য দেখা যাবে।</p>
+    </div>
+
+    <div class="map-shell">
+      <div id="leaflet-map"></div>
+      <div class="map-sidebar">
+        <h4>ঝুঁকি স্তর নির্দেশিকা</h4>
+        <div class="legend-item"><span class="legend-dot" style="background:#2E9C63;"></span> নিম্ন ঝুঁকি এলাকা</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#7FBF3F;"></span> মধ্যম ঝুঁকি এলাকা</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#E8A33D;"></span> উচ্চ ঝুঁকি এলাকা</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#C0392B;"></span> জরুরি ঝুঁকি এলাকা</div>
+        <div class="map-divider"></div>
+        <h4>সারসংক্ষেপ</h4>
+        <div class="map-info-row"><span>মোট পর্যবেক্ষণ পয়েন্ট</span><b id="map-total-points">৬</b></div>
+        <div class="map-info-row"><span>উচ্চ ঝুঁকিতে এলাকা</span><b id="map-high-risk">২</b></div>
+        <div class="map-info-row"><span>সক্রিয় সেন্সর</span><b id="map-active-sensors">৫/৬</b></div>
+        <div class="map-divider"></div>
+        <div class="map-info-row"><span>উপজেলা</span><b>দক্ষিণ সুনামগঞ্জ</b></div>
+        <div class="map-info-row"><span>জেলা</span><b>সুনামগঞ্জ</b></div>
+        <div class="map-info-row"><span>স্থানাঙ্ক</span><b style="font-family:var(--font-mono);font-size:12px;">24.97°N, 91.39°E</b></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ EMERGENCY RESPONSE CENTER ============ -->
+<section id="emergency">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">০৫ · জরুরি সহায়তা কেন্দ্র</div>
+      <h2>প্রয়োজনে দ্রুত যোগাযোগ করুন</h2>
+      <p>বিপদের সময় সঠিক জায়গায় দ্রুত যোগাযোগ করাই সবচেয়ে গুরুত্বপূর্ণ। নিচের নম্বরগুলোতে এক ক্লিকে কল করা যাবে।</p>
+    </div>
+
+    <div class="emergency-grid">
+      <div class="emergency-card">
+        <div class="ec-icon ec-red">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M22 16.92V19.92C22 20.4774 21.7831 21.0124 21.3963 21.3993C21.0096 21.7862 20.4774 22.0027 19.92 22C16.1837 21.7733 12.6126 20.3675 9.79 17.92C7.16554 15.6491 5.27387 12.6928 4.36 9.39C3.93 7.91 3.5 6.31 4 4.9C4.18 4.41 4.46 3.95 4.82 3.59C5.18 3.23 5.61 2.93 6.08 2.71C6.55 2.49 7.06 2.36 7.58 2.32H7.62C8.18 2.27 8.74 2.4 9.21 2.69C9.68 2.98 10.04 3.41 10.24 3.93L11.39 6.69C11.59 7.16 11.62 7.68 11.48 8.18C11.34 8.68 11.04 9.12 10.62 9.43L9.5 10.27C10.45 12.55 11.95 14.55 13.83 16.09L14.83 14.83C15.13 14.41 15.57 14.1 16.07 13.96C16.58 13.82 17.1 13.85 17.57 14.05L20.07 15.17C20.59 15.39 21.02 15.76 21.31 16.23C21.6 16.7 21.73 17.26 21.69 17.82L22 16.92Z" fill="#FF8A7A"/></svg>
+        </div>
+        <h4>৯৯৯ জাতীয় জরুরি সেবা</h4>
+        <div class="ec-sub">২৪ ঘণ্টা সক্রিয় হটলাইন</div>
+        <a href="tel:999" class="ec-call call-red">📞 ৯৯৯ নম্বরে কল করুন</a>
+      </div>
+
+      <div class="emergency-card">
+        <div class="ec-icon ec-blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6V11C4 16.5 7.5 20.5 12 22C16.5 20.5 20 16.5 20 11V6L12 2Z" stroke="#7FB8E0" stroke-width="1.8"/></svg>
+        </div>
+        <h4>পুলিশ কন্ট্রোল রুম</h4>
+        <div class="ec-sub">সুনামগঞ্জ সদর থানা</div>
+        <a href="tel:01320001000" class="ec-call">📞 ০১৩২০-০০১০০০</a>
+      </div>
+
+      <div class="emergency-card">
+        <div class="ec-icon ec-amber">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M8.5 14.5L4 9L8.5 3.5M15.5 14.5L20 9L15.5 3.5M12 2L8 22" stroke="#FFCB6B" stroke-width="1.6"/></svg>
+        </div>
+        <h4>ফায়ার সার্ভিস ও সিভিল ডিফেন্স</h4>
+        <div class="ec-sub">সুনামগঞ্জ স্টেশন</div>
+        <a href="tel:01730336199" class="ec-call">📞 ০১৭৩০-৩৩৬১৯৯</a>
+      </div>
+
+      <div class="emergency-card">
+        <div class="ec-icon ec-green">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 21H21M5 21V7L12 3L19 7V21M9 21V14H15V21" stroke="#7FE3AC" stroke-width="1.8"/></svg>
+        </div>
+        <h4>উপজেলা প্রশাসন</h4>
+        <div class="ec-sub">উপজেলা নির্বাহী কর্মকর্তা কার্যালয়</div>
+        <a href="tel:0871055000" class="ec-call">📞 ০৮৭১-০৫৫০০০</a>
+      </div>
+
+      <div class="emergency-card">
+        <div class="ec-icon ec-blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 12H21M3 12C3 7 7 3 12 3C17 3 21 7 21 12M3 12C3 17 7 21 12 21C17 21 21 17 21 12" stroke="#7FB8E0" stroke-width="1.6"/></svg>
+        </div>
+        <h4>নিকটস্থ আশ্রয়কেন্দ্র</h4>
+        <div class="ec-sub">দেকার হাওর উচ্চ বিদ্যালয় কেন্দ্র</div>
+        <a href="tel:01711222333" class="ec-call">📞 ০১৭১১-২২২৩৩৩</a>
+      </div>
+
+      <div class="emergency-card">
+        <div class="ec-icon ec-red">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M2 12L7 9V15L2 12Z" fill="#FF8A7A"/><path d="M7 9H17C19 9 21 11 21 13C21 15 19 17 17 17H12" stroke="#FF8A7A" stroke-width="1.6"/></svg>
+        </div>
+        <h4>নৌকা উদ্ধার দল</h4>
+        <div class="ec-sub">স্থানীয় স্বেচ্ছাসেবক দল</div>
+        <a href="tel:01911444555" class="ec-call call-red">📞 ০১৯১১-৪৪৪৫৫৫</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ABOUT PROJECT ============ -->
+<section id="about">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">০৬ · প্রকল্প পরিচিতি</div>
+      <h2>কেন এই প্রকল্পটি প্রয়োজন</h2>
+    </div>
+    <div class="about-grid">
+      <div class="about-copy">
+        <p>সুনামগঞ্জের দেকার হাওর অঞ্চল প্রতি বছর আগাম বন্যা ও পাহাড়ি ঢলের কারণে বোরো ফসলের ব্যাপক ক্ষতির সম্মুখীন হয়। কৃষকদের কাছে আগাম সতর্কবার্তা পৌঁছানোর কোনো স্বয়ংক্রিয় ব্যবস্থা না থাকায় বহু পরিবার প্রতি বছর তাদের একমাত্র ফসল হারায়।</p>
+        <p>এই প্রকল্পটি সেন্সরভিত্তিক রিয়েলটাইম মনিটরিং, কৃত্রিম বুদ্ধিমত্তা দিয়ে ঝুঁকি বিশ্লেষণ এবং স্বয়ংক্রিয় গেট নিয়ন্ত্রণের সমন্বয়ে একটি সম্পূর্ণ সমাধান তৈরি করে — যা পানির স্তর নিয়ন্ত্রণ করে এবং কৃষকদের সময়মতো সতর্ক করে।</p>
+        <div class="about-stats">
+          <div class="about-stat"><div class="a-num">৬</div><div class="a-lbl">সক্রিয় সেন্সর পয়েন্ট</div></div>
+          <div class="about-stat"><div class="a-num">২৪/৭</div><div class="a-lbl">রিয়েলটাইম মনিটরিং</div></div>
+          <div class="about-stat"><div class="a-num">&lt;৫ সে.</div><div class="a-lbl">সতর্কবার্তা প্রেরণ সময়</div></div>
+          <div class="about-stat"><div class="a-num">১০০%</div><div class="a-lbl">স্বয়ংক্রিয় গেট নিয়ন্ত্রণ</div></div>
+        </div>
+      </div>
+      <div class="mission-list">
+        <div class="mission-item"><span class="mission-num">০১</span><div><h5>হাওরের পানি পর্যবেক্ষণ</h5><p>প্রতি কয়েক সেকেন্ডে রিয়েলটাইম পানির স্তর সংগ্রহ ও বিশ্লেষণ।</p></div></div>
+        <div class="mission-item"><span class="mission-num">০২</span><div><h5>বন্যা ঝুঁকি বিশ্লেষণ</h5><p>এআই মডেল দিয়ে আগাম বন্যা ও ফসল ক্ষতির সম্ভাবনা নির্ধারণ।</p></div></div>
+        <div class="mission-item"><span class="mission-num">০৩</span><div><h5>ফসল সুরক্ষা</h5><p>সময়মতো পদক্ষেপের মাধ্যমে কৃষকের ফসল ক্ষতির পরিমাণ কমানো।</p></div></div>
+        <div class="mission-item"><span class="mission-num">০৪</span><div><h5>স্বয়ংক্রিয় গেট নিয়ন্ত্রণ</h5><p>পানির স্তর অনুযায়ী সার্ভো গেট স্বয়ংক্রিয়ভাবে খোলা ও বন্ধ হয়।</p></div></div>
+        <div class="mission-item"><span class="mission-num">০৫</span><div><h5>কৃষকদের আগাম সতর্কতা</h5><p>এসএমএস ও ড্যাশবোর্ডের মাধ্যমে তাৎক্ষণিক সতর্কবার্তা প্রদান।</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SYSTEM WORKFLOW ============ -->
+<section id="workflow">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">০৭ · সিস্টেম কর্মপ্রক্রিয়া</div>
+      <h2>সেন্সর থেকে সিদ্ধান্ত পর্যন্ত — সম্পূর্ণ প্রক্রিয়া</h2>
+      <p>নিচের প্রতিটি ধাপ ক্রমানুসারে ঘটে — একটি সেন্সর রিডিং থেকে শুরু করে গেট নিয়ন্ত্রণ ও সতর্কবার্তা প্রেরণ পর্যন্ত।</p>
+    </div>
+    <div class="workflow-track">
+      <div class="wf-step"><div class="wf-num">০১</div><div class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 5 10 5 15C5 18.866 8.134 22 12 22C15.866 22 19 18.866 19 15C19 10 12 2 12 2Z" stroke="#15648F" stroke-width="1.6"/></svg></div><h5>সেন্সর রিডিং</h5><p>আল্ট্রাসনিক সেন্সর পানির স্তর পরিমাপ করে।</p></div>
+      <div class="wf-step"><div class="wf-num">০২</div><div class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="#15648F" stroke-width="1.6"/><path d="M8 12H16M12 8V16" stroke="#15648F" stroke-width="1.6"/></svg></div><h5>ESP32 প্রসেসিং</h5><p>মাইক্রোকন্ট্রোলার ডেটা প্রসেস করে পাঠায়।</p></div>
+      <div class="wf-step"><div class="wf-num">০৩</div><div class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6V11C4 16.5 7.5 20.5 12 22C16.5 20.5 20 16.5 20 11V6L12 2Z" stroke="#15648F" stroke-width="1.6"/></svg></div><h5>ফায়ারবেস সংগ্রহ</h5><p>রিয়েলটাইম ডেটাবেসে ডেটা সংরক্ষিত হয়।</p></div>
+      <div class="wf-step"><div class="wf-num">০৪</div><div class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2L14.5 9H21.5L16 13.5L18 21L12 16.5L6 21L8 13.5L2.5 9H9.5L12 2Z" stroke="#15648F" stroke-width="1.6"/></svg></div><h5>এআই পূর্বাভাস</h5><p>মডেল ঝুঁকির মাত্রা বিশ্লেষণ করে।</p></div>
+      <div class="wf-step"><div class="wf-num">০৫</div><div class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 9V13M12 17H12.01M10.29 3.86L1.82 18A2 2 0 003.54 21H20.46A2 2 0 0022.18 18L13.71 3.86A2 2 0 0010.29 3.86Z" stroke="#15648F" stroke-width="1.6"/></svg></div><h5>সতর্কবার্তা তৈরি</h5><p>সিস্টেম প্রয়োজনীয় সতর্কতা তৈরি করে।</p></div>
+      <div class="wf-step"><div class="wf-num">০৬</div><div class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke="#15648F" stroke-width="1.6"/><path d="M12 4V20" stroke="#15648F" stroke-width="1.6"/></svg></div><h5>গেট নিয়ন্ত্রণ</h5><p>সার্ভো মোটর পানি প্রবাহ নিয়ন্ত্রণ করে।</p></div>
+      <div class="wf-step"><div class="wf-num">০৭</div><div class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 5H21V19H3V5Z" stroke="#15648F" stroke-width="1.6"/><path d="M3 5L12 13L21 5" stroke="#15648F" stroke-width="1.6"/></svg></div><h5>এসএমএস প্রেরণ</h5><p>জিএসএম মডিউল কৃষকদের এসএমএস পাঠায়।</p></div>
+      <div class="wf-step"><div class="wf-num">০৮</div><div class="wf-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#15648F" stroke-width="1.6"/><path d="M12 7V12L15 14" stroke="#15648F" stroke-width="1.6"/></svg></div><h5>ড্যাশবোর্ড আপডেট</h5><p>সব তথ্য তাৎক্ষণিকভাবে আপডেট হয়।</p></div>
+    </div>
+
+    <div class="gate-logic-grid">
+      <div class="gate-logic-card gate-danger-bg">
+        <h5>🔴 যখন পানির স্তর বিপদসীমার বেশি</h5>
+        <ul>
+          <li>গেট স্বয়ংক্রিয়ভাবে খুলে যায়</li>
+          <li>লাল এলইডি জ্বলে ওঠে</li>
+          <li>বাজার সক্রিয় হয়</li>
+          <li>কৃষকদের এসএমএস সতর্কবার্তা পাঠানো হয়</li>
+          <li>ড্যাশবোর্ডে অবস্থা "বিপদ" দেখানো হয়</li>
+        </ul>
+      </div>
+      <div class="gate-logic-card gate-safe-bg">
+        <h5>🟢 যখন পানির স্তর স্বাভাবিক থাকে</h5>
+        <ul>
+          <li>গেট স্বয়ংক্রিয়ভাবে বন্ধ থাকে</li>
+          <li>সবুজ এলইডি জ্বলে থাকে</li>
+          <li>বাজার বন্ধ থাকে</li>
+          <li>কোনো সতর্কবার্তা প্রেরণ করা হয় না</li>
+          <li>ড্যাশবোর্ডে অবস্থা "নিরাপদ" দেখানো হয়</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TECHNOLOGY STACK ============ -->
+<section id="tech">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">০৮ · প্রযুক্তি স্ট্যাক</div>
+      <h2>যেসব প্রযুক্তি দিয়ে সিস্টেমটি তৈরি</h2>
+    </div>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <h5>ফ্রন্টএন্ড</h5>
+        <ul><li>React + Vite</li><li>Tailwind CSS</li><li>Framer Motion</li></ul>
+      </div>
+      <div class="tech-card">
+        <h5>ব্যাকএন্ড</h5>
+        <ul><li>Firebase Realtime Database</li><li>Firebase Authentication</li></ul>
+      </div>
+      <div class="tech-card">
+        <h5>চার্ট ও ম্যাপ</h5>
+        <ul><li>Chart.js</li><li>Leaflet.js</li></ul>
+      </div>
+      <div class="tech-card">
+        <h5>হার্ডওয়্যার</h5>
+        <ul><li>ESP32 মাইক্রোকন্ট্রোলার</li><li>আল্ট্রাসনিক সেন্সর</li><li>DHT22, সার্ভো, GSM মডিউল</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROJECT TEAM ============ -->
+<section id="team">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">০৯ · প্রকল্প টিম</div>
+      <h2>যাদের হাতে গড়া এই প্রকল্প</h2>
+    </div>
+    <div class="team-grid">
+      <div class="team-card">
+        <div class="team-avatar">মস</div>
+        <h5>মোহাম্মদ সামিউল হক</h5>
+        <div class="role">প্রজেক্ট লিডার</div>
+        <div class="desc">সামগ্রিক প্রকল্প পরিকল্পনা ও সমন্বয়ের দায়িত্বে।</div>
+      </div>
+      <div class="team-card">
+        <div class="team-avatar">মস</div>
+        <h5>মুস্তাফিজুর রহমান সিয়াম</h5>
+        <div class="role">চিফ টেকনোলজি অফিসার</div>
+        <div class="desc">সিস্টেম আর্কিটেকচার ও সফটওয়্যার ডেভেলপমেন্ট।</div>
+      </div>
+      <div class="team-card">
+        <div class="team-avatar">নই</div>
+        <h5>নাহিদা ইসলাম তমা</h5>
+        <div class="role">রিসার্চ ও হার্ডওয়্যার সাপোর্ট</div>
+        <div class="desc">সেন্সর গবেষণা ও হার্ডওয়্যার ইন্টিগ্রেশন।</div>
+      </div>
+      <div class="team-card">
+        <div class="team-avatar">মআ</div>
+        <h5>মোহাম্মদ আব্দুল ওয়াহেদ</h5>
+        <div class="role">প্রজেক্ট সুপারভাইজার</div>
+        <div class="desc">প্রকল্পের তত্ত্বাবধান ও দিকনির্দেশনা প্রদান।</div>
+      </div>
+      <div class="team-card">
+        <div class="team-avatar">মই</div>
+        <h5>মোহাম্মদ ইমরান হাসান</h5>
+        <div class="role">মনিটরিং ও গাইডেন্স</div>
+        <div class="desc">প্রকল্পের অগ্রগতি পর্যবেক্ষণ ও পরামর্শ প্রদান।</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ IMPACT COUNTER ============ -->
+<section id="impact">
+  <div class="container">
+    <div class="impact-grid">
+      <div class="impact-item"><div class="imp-num" data-target="3240">০</div><div class="imp-lbl">সুরক্ষিত কৃষক পরিবার</div></div>
+      <div class="impact-item"><div class="imp-num" data-target="1850">০</div><div class="imp-lbl">হেক্টর সুরক্ষিত জমি</div></div>
+      <div class="impact-item"><div class="imp-num" data-target="47">০</div><div class="imp-lbl">প্রেরিত সতর্কবার্তা</div></div>
+      <div class="impact-item"><div class="imp-num" data-target="6">০</div><div class="imp-lbl">সক্রিয় সেন্সর পয়েন্ট</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GOVERNMENT EMERGENCY CONTACTS ============ -->
+<section id="govt-contacts">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">১০ · সরকারি জরুরি যোগাযোগ</div>
+      <h2>সংশ্লিষ্ট সরকারি দপ্তরের তথ্য</h2>
+    </div>
+    <div class="govt-grid">
+      <div class="govt-card"><h5>জেলা প্রশাসক কার্যালয়</h5><div class="g-office">সুনামগঞ্জ জেলা প্রশাসন</div><div class="g-phone">০৮৭১-৬১২৩৪</div></div>
+      <div class="govt-card"><h5>পানি উন্নয়ন বোর্ড (পাউবো)</h5><div class="g-office">সুনামগঞ্জ কার্যালয়</div><div class="g-phone">০৮৭১-৫৫৬৬৭</div></div>
+      <div class="govt-card"><h5>কৃষি সম্প্রসারণ অধিদপ্তর</h5><div class="g-office">উপজেলা কৃষি অফিস</div><div class="g-phone">০৮৭১-৪৪৩৩২</div></div>
+      <div class="govt-card"><h5>দুর্যোগ ব্যবস্থাপনা অধিদপ্তর</h5><div class="g-office">আঞ্চলিক কার্যালয়, সিলেট বিভাগ</div><div class="g-phone">০৮২১-৭১৫৫৫</div></div>
+      <div class="govt-card"><h5>স্থানীয় ইউনিয়ন পরিষদ</h5><div class="g-office">দেকার হাওর সংলগ্ন ইউনিয়ন</div><div class="g-phone">০১৭১৬-৮৮৯৯০০</div></div>
+      <div class="govt-card"><h5>রেড ক্রিসেন্ট সোসাইটি</h5><div class="g-office">সুনামগঞ্জ শাখা</div><div class="g-phone">০১৮৪৪-৩৩২২১১</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTACT ============ -->
+<section id="contact-section">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">১১ · যোগাযোগ</div>
+      <h2>আমাদের সাথে যোগাযোগ করুন</h2>
+      <p>প্রকল্প সম্পর্কে কোনো প্রশ্ন, পরামর্শ বা সহযোগিতার প্রস্তাব থাকলে নিচের ফর্মের মাধ্যমে জানান।</p>
+    </div>
+    <div class="contact-shell">
+      <form id="contact-form" onsubmit="event.preventDefault(); document.getElementById('form-success').style.display='flex';">
+        <div class="form-field"><label>নাম</label><input type="text" placeholder="আপনার পূর্ণ নাম লিখুন" required></div>
+        <div class="form-field"><label>মোবাইল নম্বর</label><input type="tel" placeholder="০১XXXXXXXXX" required></div>
+        <div class="form-field"><label>বার্তা</label><textarea rows="4" placeholder="আপনার বার্তা লিখুন..." required></textarea></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">বার্তা পাঠান</button>
+        <div id="form-success" style="display:none;align-items:center;gap:8px;margin-top:14px;color:var(--paddy-green-700);font-size:13.5px;font-weight:600;">✓ আপনার বার্তা সফলভাবে গ্রহণ করা হয়েছে (ডেমো)</div>
+      </form>
+      <div class="contact-info-card">
+        <h4>সরাসরি যোগাযোগ তথ্য</h4>
+        <div class="cinfo-row"><div><div class="ci-label">ইমেইল</div><div class="ci-val">contact@smarthaor-demo.bd</div></div></div>
+        <div class="cinfo-row"><div><div class="ci-label">প্রকল্প কার্যালয়</div><div class="ci-val">দেকার হাওর, সুনামগঞ্জ, বাংলাদেশ</div></div></div>
+        <div class="cinfo-row"><div><div class="ci-label">অফিস সময়</div><div class="ci-val">রবি – বৃহস্পতি, সকাল ৯টা – বিকাল ৫টা</div></div></div>
+        <div class="cinfo-row"><div><div class="ci-label">জরুরি লাইন</div><div class="ci-val">৯৯৯ (২৪ ঘণ্টা)</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ADMIN DASHBOARD ============ -->
+<section id="admin-login">
+  <div class="container">
+
+    <!-- লগইন বক্স -->
+    <div class="admin-shell" id="admin-login-box">
+      <div class="admin-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="white" stroke-width="1.8"/><path d="M8 11V7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7V11" stroke="white" stroke-width="1.8"/></svg>
+      </div>
+      <h3>অ্যাডমিন প্যানেল</h3>
+      <p>সিস্টেম পরিচালনা ও ম্যানুয়াল নিয়ন্ত্রণের জন্য কর্তৃপক্ষের প্রবেশদ্বার।</p>
+      <form onsubmit="event.preventDefault(); attemptAdminLogin();">
+        <div class="form-field"><label>পাসওয়ার্ড</label><input type="password" id="admin-pw-input" placeholder="••••••••"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">প্রবেশ করুন</button>
+      </form>
+      <div class="admin-error" id="admin-login-error">❌ পাসওয়ার্ড সঠিক নয়। আবার চেষ্টা করুন।</div>
+      <div class="admin-note">⚠️ এটি একটি ডেমো-লেভেল পাসওয়ার্ড সুরক্ষা — পাসওয়ার্ড এই পেজের কোডেই লেখা থাকে। বাস্তব/স্পর্শকাতর ব্যবহারের জন্য Firebase Authentication ব্যবহার করা উচিত।</div>
+    </div>
+
+    <!-- পূর্ণ অ্যাডমিন প্যানেল (লগইনের পর দেখা যাবে) -->
+    <div class="admin-dash-wrap" id="admin-panel-box" style="display:none;">
+      <div class="admin-dash-head">
+        <h3>⚙️ অ্যাডমিন কন্ট্রোল প্যানেল</h3>
+        <button class="admin-logout-btn" onclick="adminLogout()">লগআউট</button>
+      </div>
+
+      <div class="admin-grid">
+
+        <!-- পানির স্তর ম্যানুয়াল আপডেট -->
+        <div class="admin-card">
+          <h4>💧 পানির স্তর ম্যানুয়াল আপডেট</h4>
+          <div class="admin-slider-row">
+            <input type="range" id="admin-water-slider" min="2" max="9" step="0.1" value="5.4"
+              oninput="document.getElementById('admin-water-slider-val').textContent = toBnFixed(this.value,1)+' মি';"
+              onchange="adminSetWaterLevel(this.value)">
+            <span class="slider-val" id="admin-water-slider-val">৫.৪ মি</span>
+          </div>
+        </div>
+
+        <!-- গেট নিয়ন্ত্রণ -->
+        <div class="admin-card">
+          <h4>🚪 গেট নিয়ন্ত্রণ</h4>
+          <div class="admin-btn-row">
+            <button class="btn btn-primary" data-gate-action="open" onclick="adminOpenGate()">গেট খুলুন</button>
+            <button class="btn btn-ghost" data-gate-action="close" onclick="adminCloseGate()">গেট বন্ধ করুন</button>
+          </div>
+        </div>
+
+        <!-- বাজার নিয়ন্ত্রণ -->
+        <div class="admin-card">
+          <h4>🔔 বাজার নিয়ন্ত্রণ</h4>
+          <button class="btn btn-ghost" id="admin-buzzer-toggle" style="width:100%;justify-content:center;" onclick="adminToggleBuzzer()">🔕 বাজার চালু করুন</button>
+        </div>
+
+        <!-- বন্যা ঝুঁকি আপডেট -->
+        <div class="admin-card">
+          <h4>📊 বন্যা ঝুঁকি স্তর সেট করুন</h4>
+          <select class="admin-select" id="admin-risk-select" onchange="adminSetRisk(this.value)">
+            <option value="safe">নিরাপদ</option>
+            <option value="warn">সতর্কতা</option>
+            <option value="danger">বিপদ</option>
+          </select>
+        </div>
+
+        <!-- জরুরি সতর্কবার্তা প্রেরণ -->
+        <div class="admin-card full-width">
+          <h4>🚨 জরুরি সতর্কবার্তা প্রেরণ করুন</h4>
+          <textarea class="admin-textarea" id="admin-alert-text" rows="2" placeholder="যেমন: আগামী ২ ঘণ্টায় পানির স্তর বিপদসীমা অতিক্রম করতে পারে, নিচু এলাকার বাসিন্দাদের সতর্ক থাকার অনুরোধ করা হচ্ছে।"></textarea>
+          <button class="btn btn-danger" style="width:100%;justify-content:center;" onclick="adminSendAlert()">সতর্কবার্তা পাঠান (সব ভিজিটরের কাছে)</button>
+          <div class="admin-confirm-msg" id="admin-alert-confirm">✓ সতর্কবার্তা সফলভাবে প্রেরণ করা হয়েছে</div>
+        </div>
+
+        <!-- সেন্সর স্ট্যাটাস -->
+        <div class="admin-card full-width">
+          <h4>📡 সেন্সর স্ট্যাটাস নিয়ন্ত্রণ</h4>
+          <div class="admin-sensor-list">
+            <div class="admin-sensor-row"><span>সেন্সর ০১ — মূল পর্যবেক্ষণ পয়েন্ট</span><label class="admin-toggle-switch"><input type="checkbox" data-sensor-idx="0" checked onchange="adminToggleSensor(0, this.checked)"><span class="admin-toggle-slider"></span></label></div>
+            <div class="admin-sensor-row"><span>সেন্সর ০২ — উত্তর হাওর প্রান্ত</span><label class="admin-toggle-switch"><input type="checkbox" data-sensor-idx="1" checked onchange="adminToggleSensor(1, this.checked)"><span class="admin-toggle-slider"></span></label></div>
+            <div class="admin-sensor-row"><span>সেন্সর ০৩ — দক্ষিণ হাওর প্রান্ত</span><label class="admin-toggle-switch"><input type="checkbox" data-sensor-idx="2" checked onchange="adminToggleSensor(2, this.checked)"><span class="admin-toggle-slider"></span></label></div>
+            <div class="admin-sensor-row"><span>সেন্সর ০৪ — পশ্চিম হাওর প্রান্ত</span><label class="admin-toggle-switch"><input type="checkbox" data-sensor-idx="3" checked onchange="adminToggleSensor(3, this.checked)"><span class="admin-toggle-slider"></span></label></div>
+            <div class="admin-sensor-row"><span>সেন্সর ০৫ — পূর্ব হাওর প্রান্ত</span><label class="admin-toggle-switch"><input type="checkbox" data-sensor-idx="4" checked onchange="adminToggleSensor(4, this.checked)"><span class="admin-toggle-slider"></span></label></div>
+            <div class="admin-sensor-row"><span>সেন্সর ০৬ — আশ্রয়কেন্দ্র এলাকা</span><label class="admin-toggle-switch"><input type="checkbox" data-sensor-idx="5" onchange="adminToggleSensor(5, this.checked)"><span class="admin-toggle-slider"></span></label></div>
+          </div>
+        </div>
+
+        <!-- টিম এডিটর -->
+        <div class="admin-card full-width">
+          <h4>👥 টিম সদস্যের তথ্য সম্পাদনা</h4>
+          <div id="admin-team-editor"></div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;" onclick="saveTeamFromEditor()">টিমের তথ্য সংরক্ষণ করুন</button>
+          <div class="admin-confirm-msg" id="admin-team-save-confirm">✓ টিমের তথ্য সফলভাবে সংরক্ষিত হয়েছে</div>
+        </div>
+
+        <!-- জরুরি যোগাযোগ এডিটর -->
+        <div class="admin-card full-width">
+          <h4>📞 জরুরি যোগাযোগের তথ্য সম্পাদনা</h4>
+          <div id="admin-contacts-editor"></div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;" onclick="saveContactsFromEditor()">যোগাযোগের তথ্য সংরক্ষণ করুন</button>
+          <div class="admin-confirm-msg" id="admin-contacts-save-confirm">✓ যোগাযোগের তথ্য সফলভাবে সংরক্ষিত হয়েছে</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="footer-brand-row">
+          <div class="footer-brand-mark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 5 10 5 15C5 18.866 8.134 22 12 22C15.866 22 19 18.866 19 15C19 10 12 2 12 2Z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="name">স্মার্ট হাওর সিস্টেম</div>
+        </div>
+        <p>দেকার হাওরের পানি ব্যবস্থাপনা ও কৃষি সুরক্ষার জন্য তৈরি একটি স্বয়ংক্রিয় মনিটরিং ও সতর্কতা প্ল্যাটফর্ম। দক্ষিণ সুনামগঞ্জ উপজেলা, সুনামগঞ্জ জেলা।</p>
+        <div class="footer-emergency-chip">
+          <span>🚨 জরুরি প্রয়োজনে</span>
+          <a href="tel:999">৯৯৯</a>
+        </div>
+      </div>
+
+      <nav class="footer-nav-col">
+        <h6>নেভিগেশন</h6>
+        <ul>
+          <li><a href="#dashboard">লাইভ ড্যাশবোর্ড</a></li>
+          <li><a href="#flood-intel">ঝুঁকি বিশ্লেষণ</a></li>
+          <li><a href="#risk-map">ঝুঁকি মানচিত্র</a></li>
+          <li><a href="#about">প্রকল্প পরিচিতি</a></li>
+        </ul>
+      </nav>
+
+      <nav class="footer-nav-col">
+        <h6>সহায়তা</h6>
+        <ul>
+          <li><a href="#emergency">জরুরি সহায়তা কেন্দ্র</a></li>
+          <li><a href="#govt-contacts">সরকারি যোগাযোগ</a></li>
+          <li><a href="#contact-section">যোগাযোগ ফর্ম</a></li>
+          <li><a href="#admin-login">অ্যাডমিন প্যানেল</a></li>
+        </ul>
+      </nav>
+
+      <nav class="footer-nav-col">
+        <h6>প্রকল্প তথ্য</h6>
+        <ul>
+          <li><a href="#team">প্রকল্প টিম</a></li>
+          <li><a href="#tech">প্রযুক্তি স্ট্যাক</a></li>
+          <li><a href="#workflow">কর্মপ্রক্রিয়া</a></li>
+        </ul>
+      </nav>
+    </div>
+
+    <div class="footer-bottom">
+      <span>© ২০২৬ স্মার্ট হাওর পানি ব্যবস্থাপনা ও কৃষি সুরক্ষা সিস্টেম। সর্বস্বত্ব সংরক্ষিত।</span>
+      <span>দেকার হাওর প্রজেক্ট — সুনামগঞ্জ, বাংলাদেশ</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ===================================================================
+   SMART HAOR SYSTEM — LIVE ENGINE (Firebase-backed, local fallback)
+   ফায়ারবেস কনফিগার করা থাকলে এই স্ক্রিপ্ট /sensors, /admin, /team,
+   /contacts পাথ থেকে রিয়েলটাইম ডেটা পড়ে ও লেখে — সব ভিজিটর একই ডেটা দেখবে।
+   কনফিগার না থাকলে লোকাল র‍্যান্ডম-ওয়াক সিমুলেশন চলবে (ডেমো হিসেবে)।
+   =================================================================== */
+
+// বাংলা সংখ্যা কনভার্টার
+const bnDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
+function toBn(num){
+  return String(num).replace(/[0-9]/g, d => bnDigits[d]);
+}
+function toBnFixed(num, decimals){
+  return toBn(Number(num).toFixed(decimals));
+}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+
+// ============ STATE (Firebase যদি সক্রিয় না থাকে তখনকার ডিফল্ট মান) ============
+let state = {
+  waterLevel: 5.4,
+  threshold: 6.5,
+  temp: 31.2,
+  humidity: 78,
+  gatePercent: 35,
+  buzzer: false,
+  floodProb: 60,
+  flashFloodProb: 34,
+  overflowRisk: 58,
+  cropDamageProb: 41,
+  sensorStatus: [true, true, true, true, true, false],
+  trend7day: [3.8, 4.5, 4.2, 5.5, 6.0, 6.8, 7.4],
+  lastAlertText: 'গত ৬ ঘণ্টায় পানির স্তর ক্রমাগত বেড়েছে এবং বর্তমানে বিপদসীমার ১.১ মিটার নিচে অবস্থান করছে। কৃষকদের নিচু জমির ফসল পর্যবেক্ষণে রাখার পরামর্শ দেওয়া হচ্ছে।'
+};
+
+let isAdminLoggedIn = false;
+const ADMIN_PASSWORD = 'admin123'; // ⚠️ ডেমো-লেভেল পাসওয়ার্ড — production এ Firebase Auth ব্যবহার করা উচিত
+
+function riskBand(level, threshold){
+  const ratio = level/threshold;
+  if(ratio >= 1) return 'danger';
+  if(ratio >= 0.78) return 'warn';
+  return 'safe';
+}
+
+// ===================================================================
+// FIREBASE READ/WRITE LAYER
+// ===================================================================
+function pushStateToFirebase(partial){
+  if(!fbReady){ applyLocalUpdate(partial); return; }
+  fbDB.ref('/sensors').update(partial).catch(e => console.error('Firebase write error:', e));
+}
+
+function applyLocalUpdate(partial){
+  Object.assign(state, partial);
+  renderAll();
+}
+
+function listenToFirebase(){
+  if(!fbReady) return;
+
+  fbDB.ref('/sensors').on('value', snap => {
+    const data = snap.val();
+    if(data){
+      Object.assign(state, data);
+      renderAll();
+    } else {
+      fbDB.ref('/sensors').set(state);
+    }
+  });
+
+  fbDB.ref('/team').on('value', snap => {
+    const data = snap.val();
+    if(data) renderTeam(data);
+    else fbDB.ref('/team').set(DEFAULT_TEAM);
+  });
+
+  fbDB.ref('/contacts').on('value', snap => {
+    const data = snap.val();
+    if(data) renderEmergencyContacts(data);
+    else fbDB.ref('/contacts').set(DEFAULT_CONTACTS);
+  });
+
+  fbDB.ref('/alerts/latest').on('value', snap => {
+    const alert = snap.val();
+    if(alert && alert.text) showLiveAlertBanner(alert);
+  });
+}
+
+// ============ RENDER (সব UI একসাথে আপডেট) ============
+function renderAll(){
+  updateHeroGauge();
+  updateMiniStats();
+  updateSensorCards();
+  updateRiskCards();
+  updateDonut();
+  updateAIPredictionPanel();
+  renderRiskMapMarkers();
+  syncAdminFormFromState();
+}
+
+function gateLabel(pct){
+  if(pct <= 5) return 'সম্পূর্ণ বন্ধ';
+  if(pct >= 80) return 'সম্পূর্ণ খোলা';
+  return 'আংশিক খোলা';
+}
+
+function updateHeroGauge(){
+  const pct = clamp((state.waterLevel/9)*100, 4, 96);
+  const fillEl = document.getElementById('hero-gauge-fill');
+  if(fillEl) fillEl.style.height = pct+'%';
+
+  const valEl = document.getElementById('hero-gauge-val');
+  if(valEl) valEl.textContent = toBnFixed(state.waterLevel,1);
+
+  const diff = (state.threshold - state.waterLevel).toFixed(1);
+  const labelEl = document.querySelector('.gauge-readout .level-label');
+  const band = riskBand(state.waterLevel, state.threshold);
+  if(labelEl){
+    if(band==='danger'){
+      labelEl.textContent = 'বিপদসীমা অতিক্রম করেছে';
+    } else {
+      labelEl.textContent = `বিপদসীমা থেকে ${toBnFixed(Math.abs(diff),1)} মি ${diff>=0?'নিচে':'উপরে'}`;
+    }
+  }
+  const statusEl = document.getElementById('hero-gauge-status');
+  if(statusEl){
+    statusEl.className = 'status-badge ' + (band==='danger'?'status-danger':band==='warn'?'status-warn':'status-safe');
+    statusEl.textContent = band==='danger' ? '🚨 বিপদ স্তর' : band==='warn' ? '⚠️ সতর্কতা স্তর' : '✅ নিরাপদ স্তর';
+  }
+}
+
+function updateMiniStats(){
+  const temp = document.getElementById('hero-mini-temp');
+  if(temp) temp.textContent = toBnFixed(state.temp,1)+'°সে';
+  const hum = document.getElementById('hero-mini-hum');
+  if(hum) hum.textContent = toBn(Math.round(state.humidity))+'%';
+  const gate = document.getElementById('hero-mini-gate');
+  if(gate) gate.textContent = gateLabel(state.gatePercent);
+  const time = document.getElementById('hero-mini-time');
+  if(time) time.textContent = toBn(Math.floor(Math.random()*8)+1)+' সেকেন্ড আগে';
+}
+
+function updateSensorCards(){
+  const wl = document.getElementById('card-water-level');
+  if(wl) wl.innerHTML = toBnFixed(state.waterLevel,1)+' মি';
+  const temp = document.getElementById('card-temp');
+  if(temp) temp.textContent = toBnFixed(state.temp,1)+'°সে';
+  const hum = document.getElementById('card-hum');
+  if(hum) hum.textContent = toBn(Math.round(state.humidity))+'%';
+  const gate = document.getElementById('card-gate');
+  if(gate) gate.textContent = gateLabel(state.gatePercent);
+}
+
+function updateRiskCards(){
+  const band = riskBand(state.waterLevel, state.threshold);
+  const cards = document.querySelectorAll('.risk-status-card');
+  cards.forEach(c => c.classList.remove('is-active'));
+  document.querySelectorAll('.active-tag').forEach(t => t.remove());
+
+  let targetCard, pct;
+  if(band==='danger'){ targetCard = document.querySelector('.risk-danger'); pct = clamp(60 + (state.waterLevel-state.threshold)*40, 60, 100); }
+  else if(band==='warn'){ targetCard = document.querySelector('.risk-warn'); pct = clamp(((state.waterLevel/state.threshold)-0.6)/0.4*100, 35, 95); }
+  else { targetCard = document.querySelector('.risk-safe'); pct = clamp((state.waterLevel/state.threshold)*100, 10, 60); }
+
+  document.querySelectorAll('.progress-fill').forEach(p => p.style.width = '8%');
+  if(targetCard){
+    targetCard.classList.add('is-active');
+    const tag = document.createElement('span');
+    tag.className = 'active-tag';
+    tag.textContent = '● বর্তমান অবস্থা';
+    targetCard.querySelector('.rs-top').appendChild(tag);
+    targetCard.querySelector('.progress-fill').style.width = pct+'%';
+  }
+}
+
+// ============ DONUT CHART (Flood Intelligence) ============
+const DONUT_CIRC = 2 * Math.PI * 64;
+function updateDonut(){
+  const el = document.getElementById('donut-flood');
+  const valEl = document.getElementById('donut-flood-val');
+  if(!el) return;
+  const pct = clamp(state.floodProb, 0, 100);
+  const offset = DONUT_CIRC * (1 - pct/100);
+  el.style.strokeDashoffset = offset;
+  el.setAttribute('stroke-dasharray', DONUT_CIRC.toFixed(1));
+  const color = pct >= 70 ? '#FF8A7A' : pct >= 40 ? '#E8A33D' : '#5EE6A0';
+  el.setAttribute('stroke', color);
+  if(valEl) valEl.textContent = toBn(Math.round(pct))+'%';
+}
+
+// ============ AI PREDICTION CENTER (upgraded panel) ============
+function updateAIPredictionPanel(){
+  const setVal = (id, val, suffix) => { const el=document.getElementById(id); if(el) el.textContent = toBn(Math.round(val))+(suffix===undefined?'%':suffix); };
+  setVal('pred-flash-flood', state.flashFloodProb);
+  setVal('pred-overflow', state.overflowRisk);
+  setVal('pred-crop-damage', state.cropDamageProb);
+
+  const stabilityEl = document.getElementById('pred-stability');
+  if(stabilityEl){
+    const avg = (state.flashFloodProb+state.overflowRisk+state.cropDamageProb)/3;
+    stabilityEl.textContent = avg>=60 ? 'অস্থিতিশীল' : avg>=35 ? 'মধ্যম' : 'স্থিতিশীল';
+    stabilityEl.style.color = avg>=60 ? '#FF8A7A' : avg>=35 ? '#FFCB6B' : '#7FE3AC';
+  }
+
+  const explainEl = document.getElementById('ai-explain-text');
+  if(explainEl) explainEl.textContent = state.lastAlertText;
+
+  const trendWrap = document.getElementById('trend-bars');
+  if(trendWrap && Array.isArray(state.trend7day)){
+    const max = Math.max(...state.trend7day, state.threshold);
+    trendWrap.innerHTML = state.trend7day.map((v,i) => {
+      const h = clamp((v/max)*100, 8, 100);
+      const isLast = i === state.trend7day.length-1;
+      return `<div class="bar ${isLast?'bar-now':''}" style="height:${h}%;" title="${toBnFixed(v,1)} মি"></div>`;
+    }).join('');
+  }
+
+  const confEl = document.querySelector('.confidence-fill');
+  const confValEl = document.querySelector('.confidence-row .c-val');
+  if(confEl && confValEl){
+    const confidence = clamp(80 + (Math.abs(state.waterLevel-state.threshold)*-2 + 15), 60, 96);
+    confEl.style.width = confidence+'%';
+    confValEl.textContent = toBn(Math.round(confidence))+'%';
+  }
+}
+
+// ============ TEAM RENDERING (admin-editable) ============
+const DEFAULT_TEAM = [
+  {initials:'মস', name:'মোহাম্মদ সামিউল হক', role:'প্রজেক্ট লিডার', desc:'সামগ্রিক প্রকল্প পরিকল্পনা ও সমন্বয়ের দায়িত্বে।'},
+  {initials:'মস', name:'মুস্তাফিজুর রহমান সিয়াম', role:'চিফ টেকনোলজি অফিসার', desc:'সিস্টেম আর্কিটেকচার ও সফটওয়্যার ডেভেলপমেন্ট।'},
+  {initials:'নই', name:'নাহিদা ইসলাম তমা', role:'রিসার্চ ও হার্ডওয়্যার সাপোর্ট', desc:'সেন্সর গবেষণা ও হার্ডওয়্যার ইন্টিগ্রেশন।'},
+  {initials:'মআ', name:'মোহাম্মদ আব্দুল ওয়াহেদ', role:'প্রজেক্ট সুপারভাইজার', desc:'প্রকল্পের তত্ত্বাবধান ও দিকনির্দেশনা প্রদান।'},
+  {initials:'মই', name:'মোহাম্মদ ইমরান হাসান', role:'মনিটরিং ও গাইডেন্স', desc:'প্রকল্পের অগ্রগতি পর্যবেক্ষণ ও পরামর্শ প্রদান।'}
+];
+
+function renderTeam(team){
+  const grid = document.querySelector('.team-grid');
+  if(!grid) return;
+  grid.innerHTML = team.map(m => `
+    <div class="team-card">
+      <div class="team-avatar">${m.initials || (m.name||'').slice(0,2)}</div>
+      <h5>${m.name}</h5>
+      <div class="role">${m.role}</div>
+      <div class="desc">${m.desc}</div>
+    </div>
+  `).join('');
+}
+
+// ============ EMERGENCY CONTACTS RENDERING (admin-editable) ============
+const DEFAULT_CONTACTS = [
+  {icon:'🚨', name:'৯৯৯ জাতীয় জরুরি সেবা', sub:'২৪ ঘণ্টা সক্রিয় হটলাইন', phone:'999', urgent:true},
+  {icon:'👮', name:'পুলিশ কন্ট্রোল রুম', sub:'সুনামগঞ্জ সদর থানা', phone:'01320001000', urgent:false},
+  {icon:'🚒', name:'ফায়ার সার্ভিস ও সিভিল ডিফেন্স', sub:'সুনামগঞ্জ স্টেশন', phone:'01730336199', urgent:false},
+  {icon:'🏛️', name:'উপজেলা প্রশাসন', sub:'উপজেলা নির্বাহী কর্মকর্তা কার্যালয়', phone:'0871055000', urgent:false},
+  {icon:'🏫', name:'নিকটস্থ আশ্রয়কেন্দ্র', sub:'দক্ষিণ সুনামগঞ্জ উচ্চ বিদ্যালয় কেন্দ্র', phone:'01711222333', urgent:false},
+  {icon:'🚤', name:'নৌকা উদ্ধার দল', sub:'স্থানীয় স্বেচ্ছাসেবক দল', phone:'01911444555', urgent:true}
+];
+
+function renderEmergencyContacts(contacts){
+  const grid = document.querySelector('.emergency-grid');
+  if(!grid) return;
+  grid.innerHTML = contacts.map(c => `
+    <div class="emergency-card">
+      <div class="ec-icon ${c.urgent?'ec-red':'ec-blue'}" style="font-size:22px;display:flex;align-items:center;justify-content:center;">${c.icon||'📞'}</div>
+      <h4>${c.name}</h4>
+      <div class="ec-sub">${c.sub}</div>
+      <a href="tel:${c.phone}" class="ec-call ${c.urgent?'call-red':''}">📞 ${formatPhoneDisplay(c.phone)}</a>
+    </div>
+  `).join('');
+}
+function formatPhoneDisplay(phone){
+  if(phone === '999') return '৯৯৯ নম্বরে কল করুন';
+  return toBn(phone.replace(/(\d{5})(\d+)/, '$1-$2'));
+}
+
+// ============ LIVE ALERT BANNER (admin-sent emergency alerts) ============
+function showLiveAlertBanner(alert){
+  let banner = document.getElementById('live-alert-banner');
+  if(!banner){
+    banner = document.createElement('div');
+    banner.id = 'live-alert-banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999;background:var(--flood-red-700);color:#fff;padding:14px 20px;text-align:center;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.2);';
+    document.body.prepend(banner);
+  }
+  banner.innerHTML = `🚨 জরুরি সতর্কবার্তা: ${alert.text} <button onclick="this.parentElement.remove()" style="background:rgba(255,255,255,0.25);border-radius:100px;padding:4px 12px;color:#fff;cursor:pointer;font-size:12px;">বন্ধ করুন</button>`;
+}
+
+// ============ ANIMATED IMPACT COUNTERS ============
+function animateCounters(){
+  const counters = document.querySelectorAll('.imp-num');
+  counters.forEach(el => {
+    const target = parseInt(el.getAttribute('data-target'), 10);
+    let current = 0;
+    const duration = 1600;
+    const startTime = performance.now();
+    function step(now){
+      const progress = Math.min((now-startTime)/duration, 1);
+      const eased = 1 - Math.pow(1-progress, 3);
+      current = Math.round(target * eased);
+      el.textContent = toBn(current.toLocaleString('en-US'));
+      if(progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+// ============ ADMIN: LOGIN ============
+function attemptAdminLogin(){
+  const pwInput = document.getElementById('admin-pw-input');
+  const errEl = document.getElementById('admin-login-error');
+  if(!pwInput) return;
+  if(pwInput.value === ADMIN_PASSWORD){
+    isAdminLoggedIn = true;
+    document.getElementById('admin-login-box').style.display = 'none';
+    document.getElementById('admin-panel-box').style.display = 'block';
+    syncAdminFormFromState();
+    if(errEl) errEl.style.display = 'none';
+  } else {
+    if(errEl) errEl.style.display = 'block';
+  }
+}
+function adminLogout(){
+  isAdminLoggedIn = false;
+  document.getElementById('admin-login-box').style.display = 'block';
+  document.getElementById('admin-panel-box').style.display = 'none';
+  document.getElementById('admin-pw-input').value = '';
+}
+
+// ============ ADMIN: SYNC FORM FIELDS FROM LIVE STATE ============
+function syncAdminFormFromState(){
+  if(!isAdminLoggedIn) return;
+  const wlSlider = document.getElementById('admin-water-slider');
+  const wlVal = document.getElementById('admin-water-slider-val');
+  if(wlSlider && document.activeElement !== wlSlider){ wlSlider.value = state.waterLevel; }
+  if(wlVal) wlVal.textContent = toBnFixed(state.waterLevel,1)+' মি';
+
+  const gateBtns = document.querySelectorAll('[data-gate-action]');
+  gateBtns.forEach(b => b.classList.toggle('is-active-toggle', (b.dataset.gateAction==='open' && state.gatePercent>=80) || (b.dataset.gateAction==='close' && state.gatePercent<=5)));
+
+  const buzzBtn = document.getElementById('admin-buzzer-toggle');
+  if(buzzBtn){ buzzBtn.textContent = state.buzzer ? '🔔 বাজার বন্ধ করুন' : '🔕 বাজার চালু করুন'; buzzBtn.classList.toggle('btn-danger', !state.buzzer); }
+
+  const riskSelect = document.getElementById('admin-risk-select');
+  if(riskSelect) riskSelect.value = riskBand(state.waterLevel, state.threshold);
+
+  const sensorToggles = document.querySelectorAll('[data-sensor-idx]');
+  sensorToggles.forEach(el => {
+    const idx = parseInt(el.dataset.sensorIdx,10);
+    const isUp = state.sensorStatus ? state.sensorStatus[idx]!==false : true;
+    el.checked = isUp;
+  });
+}
+
+// ============ ADMIN: ACTIONS (write to Firebase / local state) ============
+function adminSetWaterLevel(val){
+  pushStateToFirebase({waterLevel: parseFloat(val)});
+}
+function adminOpenGate(){ pushStateToFirebase({gatePercent: 90, buzzer:true}); }
+function adminCloseGate(){ pushStateToFirebase({gatePercent: 4, buzzer:false}); }
+function adminToggleBuzzer(){ pushStateToFirebase({buzzer: !state.buzzer}); }
+function adminSetRisk(band){
+  const lvl = band==='danger' ? state.threshold+0.5 : band==='warn' ? state.threshold*0.85 : state.threshold*0.5;
+  pushStateToFirebase({waterLevel: parseFloat(lvl.toFixed(1))});
+}
+function adminToggleSensor(idx, isUp){
+  const arr = (state.sensorStatus || [true,true,true,true,true,true]).slice();
+  arr[idx] = isUp;
+  pushStateToFirebase({sensorStatus: arr});
+}
+function adminSendAlert(){
+  const input = document.getElementById('admin-alert-text');
+  if(!input || !input.value.trim()) return;
+  const alertObj = {text: input.value.trim(), sentAt: Date.now()};
+  if(fbReady){
+    fbDB.ref('/alerts/latest').set(alertObj);
+    fbDB.ref('/alerts/log').push(alertObj);
+  } else {
+    showLiveAlertBanner(alertObj);
+  }
+  pushStateToFirebase({lastAlertText: input.value.trim()});
+  input.value='';
+  const confirmEl = document.getElementById('admin-alert-confirm');
+  if(confirmEl){ confirmEl.style.display='flex'; setTimeout(()=>confirmEl.style.display='none', 3000); }
+}
+
+// ============ ADMIN: TEAM EDITOR ============
+function loadTeamIntoEditor(){
+  const path = fbReady ? null : null;
+  const current = window.__currentTeam || DEFAULT_TEAM;
+  renderTeamEditor(current);
+}
+function renderTeamEditor(team){
+  const wrap = document.getElementById('admin-team-editor');
+  if(!wrap) return;
+  wrap.innerHTML = team.map((m,i) => `
+    <div class="admin-team-row">
+      <input type="text" value="${m.name}" placeholder="নাম" data-team-field="name" data-team-idx="${i}">
+      <input type="text" value="${m.role}" placeholder="পদবি" data-team-field="role" data-team-idx="${i}">
+      <input type="text" value="${m.desc}" placeholder="বিবরণ" data-team-field="desc" data-team-idx="${i}">
+    </div>
+  `).join('');
+}
+function saveTeamFromEditor(){
+  const wrap = document.getElementById('admin-team-editor');
+  if(!wrap) return;
+  const rows = wrap.querySelectorAll('.admin-team-row');
+  const team = Array.from(rows).map(row => {
+    const inputs = row.querySelectorAll('input');
+    const name = inputs[0].value.trim();
+    return {
+      initials: name.slice(0,2),
+      name: name,
+      role: inputs[1].value.trim(),
+      desc: inputs[2].value.trim()
+    };
+  });
+  if(fbReady){ fbDB.ref('/team').set(team); }
+  else { renderTeam(team); }
+  window.__currentTeam = team;
+  flashSaveConfirm('admin-team-save-confirm');
+}
+
+// ============ ADMIN: EMERGENCY CONTACT EDITOR ============
+function renderContactsEditor(contacts){
+  const wrap = document.getElementById('admin-contacts-editor');
+  if(!wrap) return;
+  wrap.innerHTML = contacts.map((c,i) => `
+    <div class="admin-contact-row">
+      <input type="text" value="${c.name}" placeholder="প্রতিষ্ঠানের নাম" data-contact-idx="${i}" data-contact-field="name">
+      <input type="text" value="${c.sub}" placeholder="বিস্তারিত" data-contact-idx="${i}" data-contact-field="sub">
+      <input type="text" value="${c.phone}" placeholder="ফোন নম্বর" data-contact-idx="${i}" data-contact-field="phone">
+      <label class="admin-urgent-check"><input type="checkbox" ${c.urgent?'checked':''} data-contact-idx="${i}" data-contact-field="urgent"> জরুরি</label>
+    </div>
+  `).join('');
+}
+function saveContactsFromEditor(){
+  const wrap = document.getElementById('admin-contacts-editor');
+  if(!wrap) return;
+  const rows = wrap.querySelectorAll('.admin-contact-row');
+  const contacts = Array.from(rows).map(row => {
+    const name = row.querySelector('[data-contact-field="name"]').value.trim();
+    const sub = row.querySelector('[data-contact-field="sub"]').value.trim();
+    const phone = row.querySelector('[data-contact-field="phone"]').value.trim();
+    const urgent = row.querySelector('[data-contact-field="urgent"]').checked;
+    return {icon: urgent?'🚨':'📞', name, sub, phone, urgent};
+  });
+  if(fbReady){ fbDB.ref('/contacts').set(contacts); }
+  else { renderEmergencyContacts(contacts); }
+  flashSaveConfirm('admin-contacts-save-confirm');
+}
+
+function flashSaveConfirm(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.style.display = 'flex';
+  setTimeout(()=> el.style.display='none', 2500);
+}
+
+// Trigger counters when impact section scrolls into view
+const impactSection = document.getElementById('impact');
+if(impactSection){
+  let counted = false;
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting && !counted){
+        counted = true;
+        animateCounters();
+      }
+    });
+  }, {threshold:0.3});
+  obs.observe(impactSection);
+}
+
+// ============ LEAFLET RISK MAP ============
+// দেকার হাওরের প্রকৃত স্থানাঙ্ক (উৎস: LOCSS গেজ ডেটা, Dakshin Sunamganj Upazila)
+const DEKAR_HAOR_CENTER = [24.9723, 91.3928];
+let riskMapInstance = null;
+let riskMapMarkers = [];
+
+const HAOR_POINTS = [
+  {coords:[24.9723, 91.3928], name:'দেকার হাওর — মূল পর্যবেক্ষণ পয়েন্ট', area:'দক্ষিণ সুনামগঞ্জ উপজেলা সদর', baseLevel:5.4},
+  {coords:[24.9810, 91.4010], name:'উত্তর হাওর প্রান্ত', area:'মোল্লাপাড়া সংলগ্ন এলাকা', baseLevel:4.6},
+  {coords:[24.9615, 91.3845], name:'দক্ষিণ হাওর প্রান্ত', area:'রাজানগর সংলগ্ন এলাকা', baseLevel:3.4},
+  {coords:[24.9780, 91.3795], name:'পশ্চিম হাওর প্রান্ত', area:'লক্ষণশ্রী সংলগ্ন এলাকা', baseLevel:3.8},
+  {coords:[24.9660, 91.4040], name:'পূর্ব হাওর প্রান্ত', area:'সুরমা নদী সংযোগস্থল', baseLevel:4.9},
+  {coords:[24.9870, 91.3880], name:'আশ্রয়কেন্দ্র এলাকা', area:'দক্ষিণ সুনামগঞ্জ উচ্চ বিদ্যালয় সংলগ্ন', baseLevel:5.7}
+];
+
+function riskColorFor(level, threshold){
+  const band = riskBand(level, threshold);
+  if(band==='danger') return '#C0392B';
+  if(band==='warn') return '#E8A33D';
+  return '#2E9C63';
+}
+function riskLabelFor(level, threshold){
+  const band = riskBand(level, threshold);
+  if(band==='danger') return 'উচ্চ ঝুঁকি';
+  if(band==='warn') return 'মধ্যম ঝুঁকি';
+  return 'নিরাপদ';
+}
+
+function initRiskMap(){
+  const mapEl = document.getElementById('leaflet-map');
+  if(!mapEl || typeof L === 'undefined') return;
+
+  riskMapInstance = L.map('leaflet-map', {scrollWheelZoom:false}).setView(DEKAR_HAOR_CENTER, 13);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 17
+  }).addTo(riskMapInstance);
+
+  // মূল হাওর এলাকা মোটামুটি বোঝাতে একটা হালকা জল-রঙের আউটলাইন
+  L.circle(DEKAR_HAOR_CENTER, {radius:2400, color:'#15648F', fillColor:'#7FD4FF', fillOpacity:0.08, weight:1.5, dashArray:'4,6'}).addTo(riskMapInstance);
+
+  renderRiskMapMarkers();
+}
+
+function renderRiskMapMarkers(){
+  if(!riskMapInstance) return;
+  riskMapMarkers.forEach(m => riskMapInstance.removeLayer(m));
+  riskMapMarkers = [];
+
+  let highRiskCount = 0;
+  let activeCount = 0;
+
+  HAOR_POINTS.forEach((p, idx) => {
+    const variance = (idx - 2.5) * 0.35;
+    const level = clamp(state.waterLevel + variance, 2.5, 7.8);
+    const color = riskColorFor(level, state.threshold);
+    const label = riskLabelFor(level, state.threshold);
+    const isUp = state.sensorStatus ? state.sensorStatus[idx] !== false : true;
+    if(isUp) activeCount++;
+    if(riskBand(level, state.threshold)==='danger') highRiskCount++;
+
+    const marker = L.circleMarker(p.coords, {
+      radius: 11,
+      fillColor: isUp ? color : '#9AAAB0',
+      color: '#fff',
+      weight: 2,
+      fillOpacity: isUp ? 0.9 : 0.5
+    }).addTo(riskMapInstance);
+
+    marker.bindPopup(
+      `<b>${p.name}</b><br>${p.area}<br>পানির স্তর: ${toBnFixed(level,1)} মি · অবস্থা: ${isUp ? label : 'সেন্সর নিষ্ক্রিয়'}`
+    );
+    riskMapMarkers.push(marker);
+
+    if(isUp && riskBand(level, state.threshold)==='danger'){
+      const ring = L.circle(p.coords, {radius:280, color:color, fillColor:color, fillOpacity:0.12, weight:1}).addTo(riskMapInstance);
+      riskMapMarkers.push(ring);
+    }
+  });
+
+  const totalEl = document.getElementById('map-total-points');
+  const highEl = document.getElementById('map-high-risk');
+  const activeEl = document.getElementById('map-active-sensors');
+  if(totalEl) totalEl.textContent = toBn(HAOR_POINTS.length);
+  if(highEl) highEl.textContent = toBn(highRiskCount);
+  if(activeEl) activeEl.textContent = toBn(activeCount)+'/'+toBn(HAOR_POINTS.length);
+}
+
+// ============ LOCAL FALLBACK SIMULATION (Firebase কনফিগার না থাকলে) ============
+function simulateTick(){
+  if(fbReady) return; // Firebase সক্রিয় থাকলে লোকাল সিমুলেশন বন্ধ — রিয়েল ডেটা ব্যবহার হবে
+  const drift = (Math.random()-0.45) * 0.12;
+  state.waterLevel = clamp(state.waterLevel + drift, 3.0, 7.4);
+  state.temp = clamp(state.temp + (Math.random()-0.5)*0.3, 26, 36);
+  state.humidity = clamp(state.humidity + (Math.random()-0.5)*2, 55, 92);
+  state.floodProb = clamp(((state.waterLevel/state.threshold)*100) + (Math.random()-0.5)*6, 5, 96);
+  state.flashFloodProb = clamp(state.flashFloodProb + (Math.random()-0.5)*5, 5, 90);
+  state.overflowRisk = clamp(((state.waterLevel/state.threshold)*100) - 5 + (Math.random()-0.5)*5, 5, 95);
+  state.cropDamageProb = clamp(state.cropDamageProb + (Math.random()-0.5)*4, 5, 85);
+
+  const band = riskBand(state.waterLevel, state.threshold);
+  state.gatePercent = band==='danger' ? 90 : band==='warn' ? 35 : 4;
+  state.buzzer = band === 'danger';
+
+  renderAll();
+}
+
+// ============ MOBILE NAV (simple toggle, future-proofing) ============
+// Currently nav-links hide on mobile via CSS; burger menu wiring can be added here if needed.
+
+// ============ INIT ============
+document.addEventListener('DOMContentLoaded', function(){
+  initRiskMap();
+  renderTeam(DEFAULT_TEAM);
+  renderEmergencyContacts(DEFAULT_CONTACTS);
+  window.__currentTeam = DEFAULT_TEAM;
+  window.__currentContacts = DEFAULT_CONTACTS;
+  renderTeamEditor(DEFAULT_TEAM);
+  renderContactsEditor(DEFAULT_CONTACTS);
+  renderAll();
+
+  if(fbReady){
+    listenToFirebase();
+  } else {
+    // Firebase কনফিগার করা নেই — local demo simulation চলবে
+    setInterval(simulateTick, 4000);
+  }
+});
+</script>
+</body>
+</html>
